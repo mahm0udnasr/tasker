@@ -6,9 +6,9 @@ GOBIN   ?= $(shell go env GOPATH)/bin
 
 export CGO_ENABLED := 0
 
-.PHONY: all build run test test-race cover lint fmt tidy install uninstall snapshot demo screenshots clean help
+.PHONY: all build run test test-race cover lint fmt tidy check-tidy install uninstall snapshot demo screenshots clean help
 
-all: fmt lint test build ## Format, lint, test and build
+all: fmt check-tidy lint test build ## Format, tidy-check, lint, test and build
 
 build: ## Build ./bin/tasker
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) .
@@ -34,6 +34,9 @@ fmt: ## Format code (gofmt + goimports)
 
 tidy: ## Tidy go.mod
 	go mod tidy
+
+check-tidy: ## Fail if go.mod/go.sum need tidying (as CI does); changes nothing
+	go mod tidy -diff
 
 install: ## Install to $GOBIN (default ~/go/bin)
 	go install -trimpath -ldflags '$(LDFLAGS)' .

@@ -4,9 +4,11 @@ version: 2
 
 project_name: tasker
 
+# Hooks must never modify tracked files: goreleaser refuses to release from a
+# dirty tree. go.mod tidiness is enforced by CI instead (see ci.yml).
 before:
   hooks:
-    - go mod tidy
+    - go mod verify
     - go test ./...
 
 builds:

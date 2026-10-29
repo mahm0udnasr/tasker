@@ -12,6 +12,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/google/uuid v1.6.0
+	github.com/lucasb-eyer/go-colorful v1.4.1
 	github.com/olebedev/when v1.1.0
 	github.com/sahilm/fuzzy v0.1.3
 	github.com/spf13/cobra v1.10.2
@@ -38,7 +39,6 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
