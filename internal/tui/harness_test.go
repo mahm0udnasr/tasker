@@ -157,3 +157,18 @@ func (h *harness) dump(name string) {
 	_ = os.WriteFile(filepath.Join(dir, name+".txt"), []byte(h.screen()), 0o600)
 	_ = os.WriteFile(filepath.Join(dir, name+".ansi"), []byte(h.m.View().Content), 0o600)
 }
+
+// assertGeometry checks the frame is exactly w×h cells.
+func assertGeometry(t *testing.T, h *harness, w, ht int) {
+	t.Helper()
+	lines := strings.Split(h.screen(), "\n")
+	if len(lines) != ht {
+		t.Errorf("%dx%d: %d lines", w, ht, len(lines))
+	}
+	for i, l := range lines {
+		if lw := ansi.StringWidth(l); lw != w {
+			t.Errorf("%dx%d: line %d is %d wide: %q", w, ht, i, lw, l)
+			return
+		}
+	}
+}

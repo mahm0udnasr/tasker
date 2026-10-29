@@ -10,12 +10,17 @@ import (
 
 // Layout breakpoints (terminal columns).
 const (
-	sidebarWidth = 28
-	narrowWidth  = 80 // below this only the focused pane is shown
-	minWidth     = 40
-	minHeight    = 10
-	statusHeight = 1
+	sidebarWidth   = 28
+	narrowWidth    = 80  // below this only the focused pane is shown
+	detailMinWidth = 120 // below this the detail pane opens as a modal
+	minWidth       = 40
+	minHeight      = 10
+	statusHeight   = 1
 )
+
+func (m *Model) canShowDetailPane() bool { return m.width >= detailMinWidth }
+
+func (m *Model) detailVisible() bool { return m.showDetail && m.canShowDetailPane() }
 
 // layout distributes the terminal among the panes.
 func (m *Model) layout() {
@@ -25,10 +30,19 @@ func (m *Model) layout() {
 	if m.narrow() {
 		m.sidebar.SetSize(m.width, h)
 		m.list.SetSize(m.width, h)
+		m.detail.SetSize(min(m.width-4, 72), max(m.height-4, 6)) // modal size
 		return
 	}
 	m.sidebar.SetSize(sidebarWidth, h)
-	m.list.SetSize(m.width-sidebarWidth, h)
+	rest := m.width - sidebarWidth
+	if m.detailVisible() {
+		dw := max(36, min(rest*2/5, 64))
+		m.detail.SetSize(dw, h)
+		m.list.SetSize(rest-dw, h)
+		return
+	}
+	m.detail.SetSize(min(m.width-4, 72), max(m.height-4, 6))
+	m.list.SetSize(rest, h)
 }
 
 func (m Model) narrow() bool { return m.width < narrowWidth }
@@ -63,6 +77,8 @@ func (m Model) render() string {
 		panes = m.sidebar.View()
 	case m.narrow():
 		panes = m.list.View()
+	case m.detailVisible():
+		panes = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), m.list.View(), m.detail.View())
 	default:
 		panes = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), m.list.View())
 	}

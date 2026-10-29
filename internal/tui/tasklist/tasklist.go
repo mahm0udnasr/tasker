@@ -31,7 +31,8 @@ type Model struct {
 	height   int
 	focused  bool
 	title    string
-	empty    string // message when there are no rows
+	badges   []string // sort/filter indicators appended to the title
+	empty    string   // message when there are no rows
 	loaded   bool
 }
 
@@ -63,6 +64,29 @@ func (m *Model) SetRows(rows []Row) {
 
 // SetTitle sets the panel title and the empty-state message.
 func (m *Model) SetTitle(title, empty string) { m.title, m.empty = title, empty }
+
+// SetBadges sets short indicators shown after the title and count.
+func (m *Model) SetBadges(b []string) { m.badges = b }
+
+// Neighbor returns the adjacent sibling of the selected task in direction
+// delta (±1): the next top-level task for a top-level row (skipping
+// expanded subtasks), or the next subtask of the same parent.
+func (m Model) Neighbor(delta int) (domain.Task, bool) {
+	cur, ok := m.Selected()
+	if !ok {
+		return domain.Task{}, false
+	}
+	for i := m.cursor + delta; i >= 0 && i < len(m.rows); i += delta {
+		r := m.rows[i]
+		if r.Task.ParentID == cur.ParentID {
+			return r.Task, true
+		}
+		if cur.ParentID != "" { // left the parent's block
+			break
+		}
+	}
+	return domain.Task{}, false
+}
 
 // ResetCursor moves to the top (used when the scope changes).
 func (m *Model) ResetCursor() { m.cursor, m.offset = 0, 0 }
@@ -193,6 +217,9 @@ func (m Model) View() string {
 		}
 		title = fmt.Sprintf("%s · %d", m.title, top)
 	}
+	for _, b := range m.badges {
+		title += " · " + b
+	}
 
 	var body string
 	if m.loaded && len(m.rows) == 0 {
@@ -268,24 +295,34 @@ func (m Model) renderRow(r Row, selected bool, w int) string {
 
 	status := statusIcon(m.ctx, t.Status, paint)
 
-	// Right side, built first so the title gets whatever is left.
-	var right []string
+	// Right side, built first so the title gets whatever is left. Each
+	// segment has a drop rank: when the title would get too narrow, the
+	// lowest-ranked segments are dropped first (due date survives longest).
+	type segment struct {
+		text string
+		rank int
+	}
+	var segs []segment
 	if p := t.SubtaskProgress(); p != "" {
 		s := paint(st.Muted)
 		if t.SubtasksDone == t.SubtasksTotal {
 			s = paint(st.Success)
 		}
-		right = append(right, s.Render(ic.Subtasks+" "+p))
+		segs = append(segs, segment{s.Render(ic.Subtasks + " " + p), 3})
 	}
 	if t.Description != "" {
-		right = append(right, paint(st.Muted).Render(ic.Note))
+		segs = append(segs, segment{paint(st.Muted).Render(ic.Note), 2})
 	}
 	for i, tag := range t.Tags {
 		if i == 3 {
-			right = append(right, paint(st.Muted).Render(fmt.Sprintf("+%d", len(t.Tags)-3)))
+			segs = append(segs, segment{paint(st.Muted).Render(fmt.Sprintf("+%d", len(t.Tags)-3)), 0})
 			break
 		}
-		right = append(right, paint(st.Tag).Render("#"+tag))
+		rank := 1
+		if i > 0 {
+			rank = 0
+		}
+		segs = append(segs, segment{paint(st.Tag).Render("#" + tag), rank})
 	}
 	if t.Due != nil {
 		ds := paint(st.DueLater)
@@ -297,13 +334,26 @@ func (m Model) renderRow(r Row, selected bool, w int) string {
 		case t.IsDueToday(now):
 			ds = paint(st.DueToday)
 		}
-		right = append(right, ds.Render(ic.Due+" "+domain.FormatDue(*t.Due, t.DueHasTime, now)))
+		segs = append(segs, segment{ds.Render(ic.Due + " " + domain.FormatDue(*t.Due, t.DueHasTime, now)), 4})
 	}
-	rightStr := strings.Join(right, plain.Render("  "))
 
 	left := cursor + prio + tree + status + plain.Render(" ")
+	minTitle := min(lipgloss.Width(t.Title), 24)
+	var rightStr string
+	for rank := 0; ; rank++ {
+		parts := make([]string, 0, len(segs))
+		for _, sg := range segs {
+			if sg.rank >= rank {
+				parts = append(parts, sg.text)
+			}
+		}
+		rightStr = strings.Join(parts, plain.Render("  "))
+		if w-lipgloss.Width(left)-lipgloss.Width(rightStr)-2 >= minTitle || rank > 4 {
+			break
+		}
+	}
 	titleW := w - lipgloss.Width(left) - lipgloss.Width(rightStr) - 2
-	if titleW < 8 { // too narrow: drop the right side rather than the title
+	if titleW < 8 { // still too narrow: drop the right side entirely
 		rightStr = ""
 		titleW = w - lipgloss.Width(left) - 1
 	}

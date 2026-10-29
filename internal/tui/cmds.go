@@ -27,6 +27,14 @@ func dbCtx() (context.Context, context.CancelFunc) {
 
 // --- loads -----------------------------------------------------------------
 
+// listQuery is everything that determines the task list's contents.
+type listQuery struct {
+	scope    common.Scope
+	expanded map[string]bool
+	sort     domain.SortKey
+	refine   domain.Refinement
+}
+
 // tasksLoadedMsg carries a generation number so that results of a stale
 // request (the user already moved to another view) are dropped.
 type tasksLoadedMsg struct {
@@ -42,21 +50,37 @@ type sidebarLoadedMsg struct {
 	err      error
 }
 
-func loadTasks(s store.Store, gen int, scope common.Scope, expanded map[string]bool, sort domain.SortKey, now time.Time) tea.Cmd {
+type detailLoadedMsg struct {
+	gen      int
+	task     *domain.Task
+	subtasks []domain.Task
+	err      error
+}
+
+// searchIndexMsg carries every live task for the search overlay.
+type searchIndexMsg struct {
+	tasks []domain.Task
+	err   error
+}
+
+func loadTasks(s store.Store, gen int, q listQuery, now time.Time) tea.Cmd {
 	// Copy the map: the command runs concurrently with the UI.
-	exp := make(map[string]bool, len(expanded))
-	for k, v := range expanded {
+	exp := make(map[string]bool, len(q.expanded))
+	for k, v := range q.expanded {
 		exp[k] = v
 	}
 	return func() tea.Msg {
 		ctx, cancel := dbCtx()
 		defer cancel()
-		tasks, err := s.ListTasks(ctx, scope.Filter(now), sort)
+		tasks, err := s.ListTasks(ctx, q.scope.Filter(now), q.sort)
 		if err != nil {
 			return tasksLoadedMsg{gen: gen, err: err}
 		}
 		rows := make([]tasklist.Row, 0, len(tasks))
 		for _, t := range tasks {
+			if !q.refine.Match(t, now) {
+				continue
+			}
 			rows = append(rows, tasklist.Row{Task: t})
 			if !exp[t.ID] || t.SubtasksTotal == 0 {
 				continue
@@ -89,13 +113,41 @@ func loadSidebar(s store.Store, now time.Time) tea.Cmd {
 	}
 }
 
+func loadDetail(s store.Store, gen int, id string) tea.Cmd {
+	return func() tea.Msg {
+		if id == "" {
+			return detailLoadedMsg{gen: gen}
+		}
+		ctx, cancel := dbCtx()
+		defer cancel()
+		t, err := s.GetTask(ctx, id)
+		if err != nil {
+			return detailLoadedMsg{gen: gen, err: err}
+		}
+		subs, err := s.ListTasks(ctx, domain.Filter{ParentID: id, IncludeDone: true}, domain.SortManual)
+		return detailLoadedMsg{gen: gen, task: &t, subtasks: subs, err: err}
+	}
+}
+
+func loadSearchIndex(s store.Store) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := dbCtx()
+		defer cancel()
+		ts, err := s.ListTasks(ctx, domain.Filter{IncludeSubtasks: true, IncludeDone: true}, domain.SortCreated)
+		return searchIndexMsg{tasks: ts, err: err}
+	}
+}
+
 // --- mutations ---------------------------------------------------------------
 
-// mutatedMsg reports a successful change; the root reloads and shows text.
+// mutatedMsg reports a successful change; the root reloads, shows text, and
+// pushes undo (if any) onto the undo stack.
 type mutatedMsg struct {
 	text     string
 	selectID string // move the cursor here after reload
 	expandID string // expand this parent after reload
+	undo     *undoEntry
+	isUndo   bool
 }
 
 type errMsg struct{ err error }
@@ -115,21 +167,33 @@ func mutate(fn func(ctx context.Context) (mutatedMsg, error)) tea.Cmd {
 	}
 }
 
+// updateTask saves t, remembering its previous state for undo.
 func updateTask(s store.Store, t domain.Task, text string) tea.Cmd {
 	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		before, err := s.GetTask(ctx, t.ID)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
 		if err := s.UpdateTask(ctx, &t); err != nil {
 			return mutatedMsg{}, err
 		}
-		return mutatedMsg{text: text, selectID: t.ID}, nil
+		return mutatedMsg{text: text, selectID: t.ID,
+			undo: &undoEntry{desc: text, tasks: []domain.Task{before}}}, nil
 	})
 }
 
 func deleteTask(s store.Store, t domain.Task, now time.Time) tea.Cmd {
 	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		before, err := snapshotWithSubtasks(ctx, s, t.ID)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
 		if err := s.DeleteTask(ctx, t.ID, now); err != nil {
 			return mutatedMsg{}, err
 		}
-		return mutatedMsg{text: fmt.Sprintf("Deleted “%s”", t.Title)}, nil
+		text := fmt.Sprintf("Deleted “%s”", t.Title)
+		return mutatedMsg{text: text + " · u to undo",
+			undo: &undoEntry{desc: text, tasks: before}}, nil
 	})
 }
 
@@ -138,14 +202,17 @@ func deleteTask(s store.Store, t domain.Task, now time.Time) tea.Cmd {
 func saveDraft(s store.Store, d common.TaskDraft, now time.Time) tea.Cmd {
 	return mutate(func(ctx context.Context) (mutatedMsg, error) {
 		var t domain.Task
+		undo := &undoEntry{}
 		if d.ID != "" {
 			var err error
 			if t, err = s.GetTask(ctx, d.ID); err != nil {
 				return mutatedMsg{}, err
 			}
+			undo.tasks = []domain.Task{t}
 		} else {
 			t = domain.NewTask(d.Title, now)
 			t.ParentID = d.ParentID
+			undo.createdTaskIDs = []string{t.ID}
 		}
 		t.Title, t.Description, t.Priority = d.Title, strings.TrimSpace(d.Description), d.Priority
 		due, hasTime, err := domain.ParseDue(d.Due, now)
@@ -158,13 +225,20 @@ func saveDraft(s store.Store, d common.TaskDraft, now time.Time) tea.Cmd {
 		}
 		var note string
 		if t.ParentID == "" {
-			if t.ProjectID, note, err = projectID(ctx, s, d.Project, now); err != nil {
+			var created bool
+			if t.ProjectID, created, err = projectID(ctx, s, d.Project, now); err != nil {
 				return mutatedMsg{}, err
+			}
+			if created {
+				note = " · created project " + strings.TrimSpace(d.Project)
+				undo.createdProjectID = t.ProjectID
 			}
 		}
 		t.UpdatedAt = now
 
+		verb := "Added"
 		if d.ID != "" {
+			verb = "Saved"
 			err = s.UpdateTask(ctx, &t)
 		} else {
 			err = s.CreateTask(ctx, &t)
@@ -172,42 +246,27 @@ func saveDraft(s store.Store, d common.TaskDraft, now time.Time) tea.Cmd {
 		if err != nil {
 			return mutatedMsg{}, err
 		}
-		verb := "Added"
-		if d.ID != "" {
-			verb = "Saved"
-		}
-		return mutatedMsg{text: verb + " “" + t.Title + "”" + note, selectID: t.ID, expandID: t.ParentID}, nil
+		undo.desc = verb + " “" + t.Title + "”"
+		return mutatedMsg{text: undo.desc + note, selectID: t.ID, expandID: t.ParentID, undo: undo}, nil
 	})
 }
 
-// projectID resolves a project name, creating it when new. note describes
-// any creation for the status bar.
-func projectID(ctx context.Context, s store.Store, name string, now time.Time) (id, note string, err error) {
+// projectID resolves a project name, creating it when new.
+func projectID(ctx context.Context, s store.Store, name string, now time.Time) (id string, created bool, err error) {
 	if service.IsInbox(name) {
-		return "", "", nil
+		return "", false, nil
 	}
 	p, created, err := service.ResolveProject(ctx, s, strings.TrimSpace(name), now)
-	if err != nil {
-		return "", "", err
-	}
-	if created {
-		note = " · created project " + p.Name
-	}
-	return p.ID, note, nil
-}
-
-func deleteProject(s store.Store, p domain.Project, now time.Time) tea.Cmd {
-	return mutate(func(ctx context.Context) (mutatedMsg, error) {
-		if err := s.DeleteProject(ctx, p.ID, now); err != nil {
-			return mutatedMsg{}, err
-		}
-		return mutatedMsg{text: "Deleted project “" + p.Name + "” · tasks moved to Inbox"}, nil
-	})
+	return p.ID, created, err
 }
 
 func moveTask(s store.Store, t domain.Task, projectName string, now time.Time) tea.Cmd {
 	return mutate(func(ctx context.Context) (mutatedMsg, error) {
-		id, note, err := projectID(ctx, s, projectName, now)
+		before, err := s.GetTask(ctx, t.ID)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
+		id, created, err := projectID(ctx, s, projectName, now)
 		if err != nil {
 			return mutatedMsg{}, err
 		}
@@ -215,11 +274,52 @@ func moveTask(s store.Store, t domain.Task, projectName string, now time.Time) t
 		if err := s.UpdateTask(ctx, &t); err != nil {
 			return mutatedMsg{}, err
 		}
-		dest := projectName
+		dest := strings.TrimSpace(projectName)
 		if id == "" {
 			dest = "Inbox"
 		}
-		return mutatedMsg{text: "Moved to " + dest + note, selectID: t.ID}, nil
+		text := "Moved “" + t.Title + "” to " + dest
+		undo := &undoEntry{desc: text, tasks: []domain.Task{before}}
+		if created {
+			undo.createdProjectID = id
+			text += " · created project " + dest
+		}
+		return mutatedMsg{text: text, selectID: t.ID, undo: undo}, nil
+	})
+}
+
+func deleteProject(s store.Store, p domain.Project, now time.Time) tea.Cmd {
+	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		tasks, err := s.ListTasks(ctx, domain.Filter{ProjectID: p.ID, IncludeDone: true, IncludeSubtasks: true},
+			domain.SortManual)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
+		if err := s.DeleteProject(ctx, p.ID, now); err != nil {
+			return mutatedMsg{}, err
+		}
+		text := "Deleted project “" + p.Name + "”"
+		return mutatedMsg{text: text + " · tasks moved to Inbox",
+			undo: &undoEntry{desc: text, projects: []domain.Project{p}, tasks: tasks}}, nil
+	})
+}
+
+// swapOrder exchanges the manual sort positions of two tasks.
+func swapOrder(s store.Store, a, b domain.Task, now time.Time) tea.Cmd {
+	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		before := []domain.Task{a, b}
+		a.SortOrder, b.SortOrder = b.SortOrder, a.SortOrder
+		if a.SortOrder == b.SortOrder { // duplicates (e.g. after import): force an order
+			b.SortOrder += 0.5
+		}
+		a.UpdatedAt, b.UpdatedAt = now, now
+		if err := s.UpdateTask(ctx, &a); err != nil {
+			return mutatedMsg{}, err
+		}
+		if err := s.UpdateTask(ctx, &b); err != nil {
+			return mutatedMsg{}, err
+		}
+		return mutatedMsg{selectID: a.ID, undo: &undoEntry{desc: "Moved “" + a.Title + "”", tasks: before}}, nil
 	})
 }
 

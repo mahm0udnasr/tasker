@@ -1,6 +1,8 @@
 // Package tui is tasker's full-screen interface. The root Model owns layout,
 // focus and the overlay stack, routes messages to small child models, and
-// turns their intents into store commands (see cmds.go).
+// turns their intents into store commands (see cmds.go). User-facing actions
+// live in one registry (actions.go) shared by key bindings and the command
+// palette.
 package tui
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/store"
 	"github.com/mahm0udnasr/tasker/internal/theme"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
+	"github.com/mahm0udnasr/tasker/internal/tui/detail"
 	"github.com/mahm0udnasr/tasker/internal/tui/sidebar"
 	"github.com/mahm0udnasr/tasker/internal/tui/statusbar"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
@@ -25,7 +28,7 @@ type pane int
 const (
 	paneSidebar pane = iota
 	paneList
-	paneCount
+	paneDetail
 )
 
 // refreshEvery reloads periodically so changes from the CLI show up and
@@ -45,11 +48,19 @@ type Model struct {
 	scope    common.Scope
 	sidebar  sidebar.Model
 	list     tasklist.Model
+	detail   detail.Model
 	status   statusbar.Model
 	overlays []common.Overlay
 	projects []domain.Project
 	counts   domain.Counts
-	loadGen  int
+	undo     undoStack
+
+	showDetail bool                      // user preference; hidden anyway when too narrow
+	sorts      map[string]domain.SortKey // per-scope sort overrides
+	refine     domain.Refinement
+
+	loadGen   int
+	detailGen int
 	// pendingSelect is a task ID to select when the next list load arrives.
 	pendingSelect string
 }
@@ -67,13 +78,16 @@ func New(s store.Store, cfg config.Config, now func() time.Time) Model {
 		start = domain.ViewToday
 	}
 	m := Model{
-		ctx:     ctx,
-		store:   s,
-		cfg:     cfg,
-		focus:   paneList,
-		sidebar: sidebar.New(ctx, start),
-		list:    tasklist.New(ctx),
-		status:  statusbar.New(ctx),
+		ctx:        ctx,
+		store:      s,
+		cfg:        cfg,
+		focus:      paneList,
+		sidebar:    sidebar.New(ctx, start),
+		list:       tasklist.New(ctx),
+		detail:     detail.New(ctx),
+		status:     statusbar.New(ctx),
+		showDetail: cfg.ShowDetail,
+		sorts:      map[string]domain.SortKey{},
 	}
 	m.setScope(m.sidebar.Selected())
 	m.applyFocus()
@@ -100,7 +114,7 @@ func Run(s store.Store, cfg config.Config) error {
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		loadTasks(m.store, m.loadGen, m.scope, m.list.Expanded(), domain.DefaultSort(m.scope.View), m.ctx.Now()),
+		loadTasks(m.store, m.loadGen, m.query(), m.ctx.Now()),
 		loadSidebar(m.store, m.ctx.Now()),
 		tick(),
 	)
@@ -110,6 +124,18 @@ func tick() tea.Cmd {
 	return tea.Tick(refreshEvery, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
+func (m *Model) query() listQuery {
+	return listQuery{scope: m.scope, expanded: m.list.Expanded(), sort: m.sortKey(), refine: m.refine}
+}
+
+// sortKey is the user's choice for this scope, or the view's natural order.
+func (m *Model) sortKey() domain.SortKey {
+	if k, ok := m.sorts[m.scope.Key()]; ok {
+		return k
+	}
+	return domain.DefaultSort(m.scope.View)
+}
+
 // reload fetches the current list and the sidebar data in parallel.
 func (m *Model) reload() tea.Cmd {
 	return tea.Batch(m.reloadTasks(), loadSidebar(m.store, m.ctx.Now()))
@@ -117,16 +143,46 @@ func (m *Model) reload() tea.Cmd {
 
 func (m *Model) reloadTasks() tea.Cmd {
 	m.loadGen++
-	return loadTasks(m.store, m.loadGen, m.scope, m.list.Expanded(), domain.DefaultSort(m.scope.View), m.ctx.Now())
+	return loadTasks(m.store, m.loadGen, m.query(), m.ctx.Now())
+}
+
+// syncDetail loads the selected task into the detail pane when the
+// selection changed (or always, with force, after data changed).
+func (m *Model) syncDetail(force bool) tea.Cmd {
+	id := ""
+	if t, ok := m.list.Selected(); ok {
+		id = t.ID
+	}
+	if id == m.detail.TaskID() && !force {
+		return nil
+	}
+	m.detailGen++
+	return loadDetail(m.store, m.detailGen, id)
 }
 
 func (m *Model) setScope(s common.Scope) {
 	m.scope = s
-	m.list.SetTitle(s.Title, emptyMessage(s))
+	m.updateListTitle()
 	m.status.SetView(s.Title)
 }
 
-func emptyMessage(s common.Scope) string {
+// updateListTitle shows the scope plus any non-default sort and filter.
+func (m *Model) updateListTitle() {
+	var badges []string
+	if k := m.sortKey(); k != domain.DefaultSort(m.scope.View) {
+		badges = append(badges, "↕ "+string(k))
+	}
+	if m.refine.Active() {
+		badges = append(badges, "⧩ "+m.refine.Describe())
+	}
+	m.list.SetTitle(m.scope.Title, emptyMessage(m.scope, m.refine.Active()))
+	m.list.SetBadges(badges)
+}
+
+func emptyMessage(s common.Scope, filtered bool) string {
+	if filtered {
+		return "Nothing matches the filter. Press F to clear it."
+	}
 	switch {
 	case s.ProjectID != "":
 		return "No open tasks in " + s.Title
@@ -148,23 +204,48 @@ func emptyMessage(s common.Scope) string {
 	return "No tasks."
 }
 
+// panes lists the focusable panes in Tab order.
+func (m *Model) panes() []pane {
+	if m.detailVisible() {
+		return []pane{paneSidebar, paneList, paneDetail}
+	}
+	return []pane{paneSidebar, paneList}
+}
+
+func (m *Model) cycleFocus(delta int) {
+	ps := m.panes()
+	i := 0
+	for j, p := range ps {
+		if p == m.focus {
+			i = j
+		}
+	}
+	m.focus = ps[(i+delta+len(ps))%len(ps)]
+}
+
 func (m *Model) applyFocus() {
 	overlay := len(m.overlays) > 0
+	if m.focus == paneDetail && !m.detailVisible() {
+		m.focus = paneList
+	}
 	m.sidebar.SetFocused(m.focus == paneSidebar && !overlay)
 	m.list.SetFocused(m.focus == paneList && !overlay)
+	m.detail.SetFocused(m.focus == paneDetail && !overlay)
 	m.status.SetHints(m.hints())
 }
 
 // hints are the status-bar shortcuts for the focused pane.
 func (m *Model) hints() []key.Binding {
 	k := m.ctx.Keys
-	if m.focus == paneSidebar {
-		return k.Hints(common.ActRight, common.ActAdd, common.ActHelp, common.ActQuit)
+	switch m.focus {
+	case paneSidebar:
+		return k.Hints(common.ActRight, common.ActAdd, common.ActPalette, common.ActHelp)
+	case paneDetail:
+		return k.Hints(common.ActEdit, common.ActDetail, common.ActHelp)
 	}
-	return k.Hints(common.ActAdd, common.ActToggleDone, common.ActEdit, common.ActHelp)
+	return k.Hints(common.ActAdd, common.ActToggleDone, common.ActSearch, common.ActPalette, common.ActHelp)
 }
 
-// projectNames lists project names for form suggestions.
 func (m Model) projectNames() []string {
 	out := make([]string, len(m.projects))
 	for i, p := range m.projects {
@@ -173,14 +254,16 @@ func (m Model) projectNames() []string {
 	return out
 }
 
-func (m Model) projectName(id string) string {
+func (m Model) project(id string) domain.Project {
 	for _, p := range m.projects {
 		if p.ID == id {
-			return p.Name
+			return p
 		}
 	}
-	return ""
+	return domain.Project{}
 }
+
+func (m Model) projectName(id string) string { return m.project(id).Name }
 
 func plural(n int, word string) string {
 	if n == 1 {

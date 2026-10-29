@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sahilm/fuzzy"
 
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
@@ -17,7 +18,10 @@ type PickerItem struct {
 	Icon  string
 	Label string
 	Hint  string // dimmed text on the right (e.g. a key binding or count)
-	Value any
+	// Search is the text matched against the query; it defaults to Label.
+	// It should start with Label so match highlights line up.
+	Search string
+	Value  any
 }
 
 // Picker is a fuzzy-filtered list. It backs "move to project" and the
@@ -30,6 +34,7 @@ type Picker struct {
 	matches   []match
 	cursor    int
 	maxRows   int
+	width     int
 	onPick    func(PickerItem) tea.Msg
 	createFmt string // e.g. `Create project "%s"`; "" disables creating
 }
@@ -51,15 +56,23 @@ type PickerOptions struct {
 	// item then has Value == nil and Label == the typed text.
 	CreateFormat string
 	OnPick       func(PickerItem) tea.Msg
+	// Width of the list area (default 48); MaxRows visible rows (default 10).
+	Width, MaxRows int
 }
 
 // NewPicker creates a focused picker.
 func NewPicker(ctx *common.Context, o PickerOptions) (*Picker, tea.Cmd) {
 	p := &Picker{
 		ctx: ctx, title: o.Title, items: o.Items, onPick: o.OnPick,
-		createFmt: o.CreateFormat, maxRows: 10,
-		input: newInput(ctx, o.Placeholder, 44),
+		createFmt: o.CreateFormat, maxRows: o.MaxRows, width: o.Width,
 	}
+	if p.maxRows == 0 {
+		p.maxRows = 10
+	}
+	if p.width == 0 {
+		p.width = 48
+	}
+	p.input = newInput(ctx, o.Placeholder, p.width-4)
 	p.filter()
 	for i, m := range p.matches {
 		if m.item.Label == o.Current {
@@ -80,6 +93,9 @@ func (p *Picker) filter() {
 		labels := make([]string, len(p.items))
 		for i, it := range p.items {
 			labels[i] = it.Label
+			if it.Search != "" {
+				labels[i] = it.Search
+			}
 		}
 		exact := false
 		for _, r := range fuzzy.Find(q, labels) {
@@ -127,7 +143,7 @@ func (p *Picker) Update(msg tea.Msg) (common.Overlay, tea.Cmd) {
 func (p *Picker) View() string {
 	st := p.ctx.Styles
 	th := st.Theme
-	const w = 48
+	w := p.width
 	lines := []string{st.ModalTitle.Render(p.title), "", p.input.View(), ""}
 
 	start := max(0, min(p.cursor-p.maxRows/2, len(p.matches)-p.maxRows))
@@ -154,6 +170,17 @@ func (p *Picker) renderMatch(m match, selected bool, w int) string {
 		hl = hl.Background(th.Surface)
 	}
 
+	icon := m.item.Icon
+	if m.create {
+		icon = "+"
+	}
+	hint := m.item.Hint
+	// Truncate the label so it never collides with the hint.
+	text := m.item.Label
+	if maxW := w - lipgloss.Width(hint) - lipgloss.Width(icon) - 6; lipgloss.Width(text) > maxW {
+		text = ansi.Truncate(text, max(maxW, 4), "…")
+	}
+
 	var label strings.Builder
 	if m.create {
 		label.WriteString(base.Render(fmt.Sprintf(p.createFmt, m.item.Label)))
@@ -163,7 +190,7 @@ func (p *Picker) renderMatch(m match, selected bool, w int) string {
 			matched[i] = true
 		}
 		// fuzzy reports byte offsets; walk the string by byte index.
-		for i, r := range m.item.Label {
+		for i, r := range text {
 			if matched[i] {
 				label.WriteString(hl.Render(string(r)))
 			} else {
@@ -172,16 +199,12 @@ func (p *Picker) renderMatch(m match, selected bool, w int) string {
 		}
 	}
 
-	icon := m.item.Icon
-	if m.create {
-		icon = "+"
-	}
 	prefix := base.Render("  ")
 	if selected {
 		prefix = lipgloss.NewStyle().Foreground(th.Accent).Background(th.Surface).Render(p.ctx.Icons.Selected + " ")
 	}
 	left := prefix + base.Render(icon+" ") + label.String()
-	hint := base.Foreground(th.Muted).Render(m.item.Hint)
-	gap := max(w-lipgloss.Width(left)-lipgloss.Width(hint), 1)
-	return left + base.Render(strings.Repeat(" ", gap)) + hint
+	hintStr := base.Foreground(th.Muted).Render(hint)
+	gap := max(w-lipgloss.Width(left)-lipgloss.Width(hintStr), 1)
+	return left + base.Render(strings.Repeat(" ", gap)) + hintStr
 }

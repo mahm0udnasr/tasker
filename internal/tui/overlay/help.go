@@ -22,8 +22,11 @@ var helpSections = []struct {
 	{"Navigate", []string{common.ActUp, common.ActDown, common.ActTop, common.ActBottom,
 		common.ActPageUp, common.ActPageDown, common.ActLeft, common.ActRight, common.ActNextPane, common.ActExpand}},
 	{"Tasks", []string{common.ActAdd, common.ActAddSubtask, common.ActEdit, common.ActToggleDone,
-		common.ActToggleStart, common.ActDelete, common.ActPriority, common.ActDue, common.ActMove}},
-	{"General", []string{common.ActDelProject, common.ActRefresh, common.ActHelp, common.ActQuit}},
+		common.ActToggleStart, common.ActDelete, common.ActPriority, common.ActDue, common.ActMove,
+		common.ActMoveUp, common.ActMoveDown}},
+	{"General", []string{common.ActSearch, common.ActPalette, common.ActFilter, common.ActClearFilter,
+		common.ActSort, common.ActUndo, common.ActDetail, common.ActDelProject, common.ActRefresh,
+		common.ActHelp, common.ActQuit}},
 }
 
 // Update implements common.Overlay: any of esc, ?, q closes.

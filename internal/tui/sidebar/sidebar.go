@@ -126,6 +126,18 @@ func (m Model) firstSelectable() int {
 	return 0
 }
 
+// Select moves the cursor to scope, reporting whether it exists.
+func (m *Model) Select(s common.Scope) bool {
+	for i, it := range m.items {
+		if it.selectable() && it.scope.Key() == s.Key() {
+			m.cursor = i
+			m.clampOffset()
+			return true
+		}
+	}
+	return false
+}
+
 // Selected returns the highlighted scope.
 func (m Model) Selected() common.Scope {
 	if m.cursor < 0 || m.cursor >= len(m.items) {

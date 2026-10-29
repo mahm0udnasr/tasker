@@ -6,13 +6,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
+	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
 )
 
 // Update implements tea.Model. Routing order:
 //  1. data and lifecycle messages are handled here regardless of overlays;
 //  2. key presses go to the top overlay if there is one;
-//  3. otherwise global keys, then the focused pane, then task actions.
+//  3. otherwise registry actions (keys bound in actions.go), then pane
+//     focus keys, then the focused pane's own navigation.
 //
 // Anything unrecognized (cursor blinks, huh internals, status timers) is
 // forwarded to the top overlay and the status bar.
@@ -21,7 +23,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.layout()
-		return m, m.forwardToOverlay(msg)
+		return m, tea.Batch(m.forwardToOverlay(msg), m.syncDetail(false))
 
 	case tasksLoadedMsg:
 		if msg.gen != m.loadGen {
@@ -35,6 +37,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SelectID(m.pendingSelect)
 			m.pendingSelect = ""
 		}
+		return m, m.syncDetail(true)
+
+	case detailLoadedMsg:
+		if msg.gen != m.detailGen {
+			return m, nil
+		}
+		if msg.err != nil {
+			return m, common.ErrorCmd(msg.err)
+		}
+		proj := m.project("")
+		if msg.task != nil {
+			proj = m.project(msg.task.ProjectID)
+		}
+		m.detail.SetTask(msg.task, msg.subtasks, proj)
 		return m, nil
 
 	case sidebarLoadedMsg:
@@ -52,13 +68,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case searchIndexMsg:
+		if msg.err != nil {
+			return m, common.ErrorCmd(msg.err)
+		}
+		return m, m.openSearch(msg.tasks)
+
 	case mutatedMsg:
+		if msg.undo != nil && !msg.isUndo {
+			m.undo.push(*msg.undo)
+		}
 		if msg.expandID != "" {
 			m.list.Expand(msg.expandID)
 		}
 		// A new task isn't in the list yet; select it once the reload lands.
 		m.pendingSelect = msg.selectID
-		return m, tea.Batch(m.reload(), common.Status(msg.text))
+		cmds := []tea.Cmd{m.reload()}
+		if msg.text != "" {
+			cmds = append(cmds, common.Status(msg.text))
+		}
+		return m, tea.Batch(cmds...)
 
 	case errMsg:
 		return m, tea.Batch(common.ErrorCmd(errors.New(friendly(msg.err))), m.reload())
@@ -70,6 +99,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setScope(msg.Scope)
 		m.list.ResetCursor()
 		return m, m.reloadTasks()
+
+	case jumpScopeMsg:
+		m.focus = paneList
+		return m, m.jumpScope(msg.scope)
+
+	case jumpToTaskMsg:
+		return m, m.jumpToTask(msg)
+
+	case paletteMsg:
+		if a, ok := findAction(msg.name); ok {
+			return m, m.runAction(a)
+		}
+		return m, nil
+
+	case overlay.RefineMsg:
+		return m, m.setRefinement(msg.Refinement)
 
 	case tasklist.ExpandToggledMsg:
 		return m, m.reloadTasks()
@@ -90,7 +135,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case taskActionMsg:
-		return m, m.runAction(msg)
+		return m, m.finishTaskAction(msg)
 
 	case deleteProjectMsg:
 		return m, deleteProject(m.store, msg.project, m.ctx.Now())
@@ -127,22 +172,29 @@ func (m *Model) pushOverlay(o common.Overlay, init tea.Cmd) tea.Cmd {
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if a, ok := m.keyAction(msg); ok {
+		cmd := m.runAction(a)
+		return m, cmd
+	}
+
 	k := m.ctx.Keys
 	switch {
-	case k.Is(msg, common.ActQuit):
-		return m, tea.Quit
-	case k.Is(msg, common.ActHelp):
-		return m, m.openHelp()
-	case k.Is(msg, common.ActRefresh):
-		return m, tea.Batch(m.reload(), common.Status("Reloaded"))
 	case k.Is(msg, common.ActNextPane):
-		m.focus = (m.focus + 1) % paneCount
+		m.cycleFocus(1)
 	case k.Is(msg, common.ActPrevPane):
-		m.focus = (m.focus + paneCount - 1) % paneCount
+		m.cycleFocus(-1)
 	case k.Is(msg, common.ActLeft):
-		m.focus = paneSidebar
+		if m.focus == paneDetail {
+			m.focus = paneList
+		} else {
+			m.focus = paneSidebar
+		}
 	case k.Is(msg, common.ActRight):
-		m.focus = paneList
+		if m.focus == paneList && m.detailVisible() {
+			m.focus = paneDetail
+		} else if m.focus == paneSidebar {
+			m.focus = paneList
+		}
 	default:
 		return m.handlePaneKey(msg)
 	}
@@ -151,14 +203,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handlePaneKey gives navigation keys to the focused pane.
 func (m Model) handlePaneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// These work from either pane and target the sidebar selection.
-	switch {
-	case m.ctx.Keys.Is(msg, common.ActAdd):
-		return m, m.openAddForm("", "")
-	case m.ctx.Keys.Is(msg, common.ActDelProject):
-		return m, m.confirmDeleteProject()
-	}
 	var cmd tea.Cmd
 	switch m.focus {
 	case paneSidebar:
@@ -169,11 +215,11 @@ func (m Model) handlePaneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.layout()
 		}
 		return m, cmd
-	default:
-		if c := m.taskKey(msg); c != nil {
-			return m, c
-		}
-		m.list, cmd = m.list.Update(msg)
+	case paneDetail:
+		m.detail, cmd = m.detail.Update(msg)
 		return m, cmd
+	default:
+		m.list, cmd = m.list.Update(msg)
+		return m, tea.Batch(cmd, m.syncDetail(false))
 	}
 }

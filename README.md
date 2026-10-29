@@ -3,8 +3,8 @@
 A fast, keyboard-driven task manager for the terminal, built with Go and
 [Charm](https://charm.sh). Single static binary, no CGO, data in SQLite.
 
-> 🚧 Under active development: search, filters, sorting, undo, the detail pane,
-> themes and stats are coming next.
+> 🚧 Under active development: themes, the stats view and a first-run welcome
+> are coming next.
 
 ## Install
 
@@ -27,12 +27,28 @@ Run `tasker` with no arguments. Press `?` for every shortcut.
 | `g` / `G` | top / bottom | `A` | add subtask |
 | `h` / `l`, `Tab` | switch panes | `e` | edit task |
 | `Enter` | expand subtasks | `x` / `Space` | toggle done |
-| `ctrl+r` | reload | `i` | toggle in progress |
-| `?` | help | `d` | delete (with confirmation) |
-| `q` | quit | `p` | cycle priority |
-| | | `t` | set due date |
-| | | `m` | move to project |
-| | | `D` | delete the project selected in the sidebar (tasks move to Inbox) |
+| `v` | toggle detail pane | `i` | toggle in progress |
+| `/` | search all tasks | `d` | delete task |
+| `Ctrl+P` or `:` | command palette | `p` | cycle priority |
+| `f` / `F` | filter / clear filter | `t` | set due date |
+| `s` | cycle sort | `m` | move to project |
+| `u` | undo | `J` / `K` | reorder (manual sort) |
+| `ctrl+r` | reload | `D` | delete selected project |
+| `?` | help | `q` | quit |
+
+- **Detail pane** (`v`): the selected task with metadata, subtasks and its notes
+  rendered as markdown. On terminals narrower than 120 columns it opens as a
+  modal instead.
+- **Search** (`/`): fuzzy search over every task's title, tags and project;
+  `Enter` jumps to the task (expanding its parent if it's a subtask).
+- **Filter** (`f`): narrow the current list by priority, due date and status;
+  the active filter is shown in the list title. `F` clears it.
+- **Sort** (`s`): cycle manual → due → priority → created → title, remembered
+  per view. In manual order, `J`/`K` move tasks.
+- **Undo** (`u`): reverts the last change: completions, edits, moves, deletes
+  (including a deleted project and its tasks), reorders. Up to 50 steps.
+- **Command palette** (`Ctrl+P`): every action plus "Go to" any view, project
+  or tag.
 
 In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
 `Esc` cancels. Adding from a view pre-fills it (e.g. due "today" in Today,

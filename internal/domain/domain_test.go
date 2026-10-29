@@ -385,3 +385,72 @@ func TestCountsTodayProgress(t *testing.T) {
 		t.Errorf("empty progress = %v", p)
 	}
 }
+
+func TestRefinement(t *testing.T) {
+	high := NewTask("high", now)
+	high.Priority = PriorityHigh
+	high.Due = at(2026, 10, 27, 0, 0) // overdue
+	low := NewTask("low", now)
+	low.Priority = PriorityLow
+	low.SetStatus(StatusInProgress, now)
+	urgent := NewTask("urgent", now)
+	urgent.Priority = PriorityUrgent
+	urgent.Due = at(2026, 11, 2, 0, 0)
+
+	tests := []struct {
+		name string
+		r    Refinement
+		want []string
+		desc string
+	}{
+		{"zero matches all", Refinement{}, []string{"high", "low", "urgent"}, ""},
+		{"min priority", Refinement{MinPriority: PriorityHigh}, []string{"high", "urgent"}, "≥high"},
+		{"urgent only", Refinement{MinPriority: PriorityUrgent}, []string{"urgent"}, "urgent"},
+		{"has due", Refinement{Due: DueSet}, []string{"high", "urgent"}, "has due date"},
+		{"no due", Refinement{Due: DueNone}, []string{"low"}, "no due date"},
+		{"overdue", Refinement{Due: DueOverdue}, []string{"high"}, "overdue"},
+		{"status", Refinement{Status: StatusInProgress}, []string{"low"}, "in progress"},
+		{"combined", Refinement{MinPriority: PriorityHigh, Due: DueSet}, []string{"high", "urgent"}, "≥high · has due date"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, task := range []Task{high, low, urgent} {
+				if tt.r.Match(task, now) {
+					got = append(got, task.Title)
+				}
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+			if d := tt.r.Describe(); d != tt.desc {
+				t.Errorf("Describe() = %q, want %q", d, tt.desc)
+			}
+			if tt.r.Active() != (tt.desc != "") {
+				t.Errorf("Active() = %v", tt.r.Active())
+			}
+		})
+	}
+}
+
+func TestRelative(t *testing.T) {
+	tests := []struct {
+		due     *time.Time
+		hasTime bool
+		want    string
+	}{
+		{at(2026, 10, 29, 17, 30), true, "in 2h"},
+		{at(2026, 10, 29, 14, 0), true, "30m ago"},
+		{at(2026, 10, 29, 0, 0), false, "today"},
+		{at(2026, 10, 30, 0, 0), false, "tomorrow"},
+		{at(2026, 10, 28, 0, 0), false, "yesterday"},
+		{at(2026, 11, 3, 0, 0), false, "in 5 days"},
+		{at(2026, 10, 25, 0, 0), false, "4 days ago"},
+		{at(2026, 11, 2, 9, 0), true, "in 4 days"},
+	}
+	for _, tt := range tests {
+		if got := Relative(*tt.due, tt.hasTime, now); got != tt.want {
+			t.Errorf("Relative(%v) = %q, want %q", tt.due, got, tt.want)
+		}
+	}
+}

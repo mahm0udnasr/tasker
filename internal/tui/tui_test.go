@@ -91,7 +91,7 @@ func TestToggleDoneAndPriority(t *testing.T) {
 	seedDemo(h)
 	// Cursor starts on the first row (Pay rent, overdue, sorted first).
 	h.keys("p") // urgent → none
-	h.contains("Priority: none")
+	h.contains("Priority of “Pay rent”: none")
 	h.keys("x")
 	h.contains("Completed “Pay rent”")
 	h.contains("Today · 2") // done tasks leave Today
@@ -131,14 +131,14 @@ func TestSetDueAndMove(t *testing.T) {
 		h.keys("backspace")
 	}
 	h.keys("type:next week", "enter")
-	h.contains("Due Mon")
-	h.notContains("Buy groceries")
+	h.contains("“Buy groceries” due Mon")
+	h.contains("Today · 2") // it moved to next week
 
 	h.keys("g", "m")
 	h.contains("Move “Pay rent” to…")
 	h.dump("picker")
 	h.keys("type:Home", "enter")
-	h.contains("Moved to Home · created project Home")
+	h.contains("Moved “Pay rent” to Home · created project Home")
 	h.contains("Home")
 }
 

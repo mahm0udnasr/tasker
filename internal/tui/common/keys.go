@@ -30,6 +30,15 @@ const (
 	ActQuit        = "quit"
 	ActRefresh     = "refresh"
 	ActDelProject  = "delete_project"
+	ActMoveUp      = "move_up"
+	ActMoveDown    = "move_down"
+	ActSearch      = "search"
+	ActFilter      = "filter"
+	ActClearFilter = "clear_filter"
+	ActSort        = "sort"
+	ActUndo        = "undo"
+	ActDetail      = "toggle_detail"
+	ActPalette     = "palette"
 )
 
 type actionDef struct {
@@ -61,7 +70,16 @@ var defaults = []actionDef{
 	{ActDue, []string{"t"}, "", "set due date"},
 	{ActMove, []string{"m"}, "", "move to project"},
 	{ActExpand, []string{"enter", "o"}, "enter", "expand subtasks"},
+	{ActMoveUp, []string{"K"}, "", "move task up (manual sort)"},
+	{ActMoveDown, []string{"J"}, "", "move task down (manual sort)"},
 	{ActDelProject, []string{"D"}, "", "delete selected project"},
+	{ActSearch, []string{"/"}, "", "search all tasks"},
+	{ActFilter, []string{"f"}, "", "filter list"},
+	{ActClearFilter, []string{"F"}, "", "clear filter"},
+	{ActSort, []string{"s"}, "", "cycle sort"},
+	{ActUndo, []string{"u"}, "", "undo"},
+	{ActDetail, []string{"v"}, "", "toggle detail pane"},
+	{ActPalette, []string{"ctrl+p", ":"}, "ctrl+p", "command palette"},
 	{ActRefresh, []string{"ctrl+r"}, "", "reload"},
 	{ActHelp, []string{"?"}, "", "toggle help"},
 	{ActQuit, []string{"q", "ctrl+c"}, "q", "quit"},

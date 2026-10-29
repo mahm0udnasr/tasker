@@ -142,3 +142,40 @@ func FormatDue(due time.Time, hasTime bool, now time.Time) string {
 	}
 	return day
 }
+
+// Relative describes a due date relative to now: "in 3h", "45m ago",
+// "today", "tomorrow", "in 4 days", "2 days ago". Timed dates within a day
+// are shown in hours or minutes.
+func Relative(due time.Time, hasTime bool, now time.Time) string {
+	if hasTime {
+		d := due.Sub(now)
+		abs := d
+		if abs < 0 {
+			abs = -abs
+		}
+		if abs < 24*time.Hour {
+			var s string
+			if abs < time.Hour {
+				s = fmt.Sprintf("%dm", int(abs.Minutes()))
+			} else {
+				s = fmt.Sprintf("%dh", int(abs.Hours()))
+			}
+			if d < 0 {
+				return s + " ago"
+			}
+			return "in " + s
+		}
+	}
+	switch n := DaysBetween(now, due); {
+	case n == 0:
+		return "today"
+	case n == 1:
+		return "tomorrow"
+	case n == -1:
+		return "yesterday"
+	case n > 1:
+		return fmt.Sprintf("in %d days", n)
+	default:
+		return fmt.Sprintf("%d days ago", -n)
+	}
+}
