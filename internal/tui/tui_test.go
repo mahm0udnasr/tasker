@@ -142,6 +142,30 @@ func TestSetDueAndMove(t *testing.T) {
 	h.contains("Home")
 }
 
+func TestDeleteProjectWithShiftD(t *testing.T) {
+	h := newHarness(t, 120, 30)
+	seedDemo(h)
+	h.keys("D") // Today is not a project
+	h.contains("select a project in the sidebar")
+	h.keys("d") // lowercase d still deletes the selected task, never a project
+	h.contains("Delete task?")
+	h.keys("esc")
+
+	h.keys("h", "j", "j", "j", "j") // Today → Upcoming → Overdue → Completed → Uni
+	h.contains("Uni · 1")
+	h.keys("D")
+	h.contains("Delete project?")
+	h.contains("1 open task") // the body wraps, so match a fragment
+	h.keys("y")
+	h.contains("Deleted project “Uni”")
+	h.notContains("PROJECTS\n│   Uni")
+	h.contains("Inbox · 5") // the ML task moved to the Inbox
+	ps, _ := h.store.ListProjects(context.Background())
+	if len(ps) != 0 {
+		t.Fatalf("projects left: %+v", ps)
+	}
+}
+
 func TestHelpAndNarrowLayout(t *testing.T) {
 	h := newHarness(t, 70, 24)
 	seedDemo(h)

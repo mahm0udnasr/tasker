@@ -157,6 +157,21 @@ func TestEditFlags(t *testing.T) {
 	}
 }
 
+func TestProjectsRm(t *testing.T) {
+	c := newCLI(t)
+	c.mustRun("add", "essay", "-P", "Uni")
+	out := c.mustRun("projects", "rm", "uni")
+	if !strings.Contains(out, "Deleted project") {
+		t.Errorf("output: %s", out)
+	}
+	if got := c.listJSON("--inbox"); len(got) != 1 || got[0].Project != "" {
+		t.Errorf("task should be in inbox: %+v", got)
+	}
+	if _, err := c.run("projects", "rm", "uni"); err == nil {
+		t.Error("deleting a missing project should fail")
+	}
+}
+
 func TestExportImportRoundTrip(t *testing.T) {
 	src := newCLI(t)
 	src.mustRun("add", "task one", "-P", "uni", "-t", "x", "-n", "# Heading\nbody")

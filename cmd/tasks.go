@@ -294,6 +294,36 @@ func newShowCmd(a *app) *cobra.Command {
 	return cmd
 }
 
+func newProjectRmCmd(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:     "rm <name|id>...",
+		Aliases: []string{"delete"},
+		Short:   "Delete projects; their tasks move to the Inbox",
+		Args:    cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			s, err := a.Store(ctx)
+			if err != nil {
+				return err
+			}
+			for _, arg := range args {
+				p, err := s.GetProjectByName(ctx, arg)
+				if err != nil {
+					if p, err = s.GetProject(ctx, arg); err != nil {
+						return fmt.Errorf("project %q not found", arg)
+					}
+				}
+				if err := s.DeleteProject(ctx, p.ID, a.now()); err != nil {
+					return err
+				}
+				fmt.Fprintln(a.out, styles.err.Render("✘ Deleted project"), styles.project.Render(p.Name),
+					styles.dim.Render("(tasks moved to Inbox)"))
+			}
+			return nil
+		},
+	}
+}
+
 // newStatusCmd builds done/reopen, which set a status on one or more tasks.
 func newStatusCmd(a *app, use, short, verb string, status domain.Status) *cobra.Command {
 	return &cobra.Command{
@@ -499,5 +529,6 @@ func newProjectsCmd(a *app) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	cmd.AddCommand(newProjectRmCmd(a))
 	return cmd
 }

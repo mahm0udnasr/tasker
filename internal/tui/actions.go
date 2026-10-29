@@ -205,6 +205,32 @@ func (m *Model) openMovePicker(t domain.Task) tea.Cmd {
 	return m.pushOverlay(p, init)
 }
 
+// deleteProjectMsg is delivered by the confirm dialog.
+type deleteProjectMsg struct{ project domain.Project }
+
+// confirmDeleteProject asks before deleting the project selected in the
+// sidebar. Its tasks are kept and move to the Inbox.
+func (m *Model) confirmDeleteProject() tea.Cmd {
+	if m.scope.ProjectID == "" {
+		return common.ErrorCmd(fmt.Errorf("select a project in the sidebar to delete it"))
+	}
+	var p domain.Project
+	for _, x := range m.projects {
+		if x.ID == m.scope.ProjectID {
+			p = x
+		}
+	}
+	if p.ID == "" {
+		return nil
+	}
+	body := fmt.Sprintf("Project “%s” will be deleted. It has no open tasks.", p.Name)
+	if n := m.counts.Projects[p.ID]; n > 0 {
+		body = fmt.Sprintf("Project “%s” will be deleted. Its %s will move to the Inbox.",
+			p.Name, plural(n, "open task"))
+	}
+	return m.pushOverlay(overlay.NewConfirm(m.ctx, "Delete project?", body, deleteProjectMsg{project: p}), nil)
+}
+
 func (m *Model) openHelp() tea.Cmd {
 	return m.pushOverlay(overlay.NewHelp(m.ctx), nil)
 }

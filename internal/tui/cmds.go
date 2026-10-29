@@ -196,6 +196,15 @@ func projectID(ctx context.Context, s store.Store, name string, now time.Time) (
 	return p.ID, note, nil
 }
 
+func deleteProject(s store.Store, p domain.Project, now time.Time) tea.Cmd {
+	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		if err := s.DeleteProject(ctx, p.ID, now); err != nil {
+			return mutatedMsg{}, err
+		}
+		return mutatedMsg{text: "Deleted project “" + p.Name + "” · tasks moved to Inbox"}, nil
+	})
+}
+
 func moveTask(s store.Store, t domain.Task, projectName string, now time.Time) tea.Cmd {
 	return mutate(func(ctx context.Context) (mutatedMsg, error) {
 		id, note, err := projectID(ctx, s, projectName, now)

@@ -32,6 +32,7 @@ Run `tasker` with no arguments. Press `?` for every shortcut.
 | `q` | quit | `p` | cycle priority |
 | | | `t` | set due date |
 | | | `m` | move to project |
+| | | `D` | delete the project selected in the sidebar (tasks move to Inbox) |
 
 In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
 `Esc` cancels. Adding from a view pre-fills it (e.g. due "today" in Today,
@@ -59,6 +60,8 @@ tasker done 5d56 a0a7          # several at once
 tasker edit 5d56 --due "next monday" --add-tag exam
 tasker edit 5d56               # opens $EDITOR
 tasker rm 5d56
+tasker projects                # list projects
+tasker projects rm uni         # delete a project; its tasks move to Inbox
 tasker export -o backup.json && tasker import backup.json
 ```
 

@@ -29,6 +29,7 @@ const (
 	ActHelp        = "help"
 	ActQuit        = "quit"
 	ActRefresh     = "refresh"
+	ActDelProject  = "delete_project"
 )
 
 type actionDef struct {
@@ -60,6 +61,7 @@ var defaults = []actionDef{
 	{ActDue, []string{"t"}, "", "set due date"},
 	{ActMove, []string{"m"}, "", "move to project"},
 	{ActExpand, []string{"enter", "o"}, "enter", "expand subtasks"},
+	{ActDelProject, []string{"D"}, "", "delete selected project"},
 	{ActRefresh, []string{"ctrl+r"}, "", "reload"},
 	{ActHelp, []string{"?"}, "", "toggle help"},
 	{ActQuit, []string{"q", "ctrl+c"}, "q", "quit"},

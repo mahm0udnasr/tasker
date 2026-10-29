@@ -92,6 +92,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case taskActionMsg:
 		return m, m.runAction(msg)
 
+	case deleteProjectMsg:
+		return m, deleteProject(m.store, msg.project, m.ctx.Now())
+
 	case tea.KeyPressMsg:
 		if len(m.overlays) > 0 {
 			return m, m.forwardToOverlay(msg)
@@ -149,9 +152,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handlePaneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// Adding works from either pane; it targets the current scope.
-	if m.ctx.Keys.Is(msg, common.ActAdd) {
+	// These work from either pane and target the sidebar selection.
+	switch {
+	case m.ctx.Keys.Is(msg, common.ActAdd):
 		return m, m.openAddForm("", "")
+	case m.ctx.Keys.Is(msg, common.ActDelProject):
+		return m, m.confirmDeleteProject()
 	}
 	var cmd tea.Cmd
 	switch m.focus {
