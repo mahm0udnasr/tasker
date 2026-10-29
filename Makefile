@@ -57,8 +57,17 @@ snapshot: ## Build release archives and .deb/.rpm locally into dist/ (needs gore
 	$(GORELEASER) release --snapshot --clean
 	@echo; echo "Packages:"; ls -1 dist/*.deb dist/*.rpm
 
-demo: build ## Record docs/demo.gif (needs vhs)
-	PATH="$(CURDIR)/bin:$$PATH" vhs docs/demo.tape
+VHS := $(shell command -v vhs 2>/dev/null || { [ -x "$(GOBIN)/vhs" ] && echo "$(GOBIN)/vhs"; })
+
+demo: build ## Record docs/demo.gif (needs vhs, ttyd and ffmpeg)
+	@[ -n "$(VHS)" ] || { echo "vhs not found. Install it with:"; \
+		echo "  go install github.com/charmbracelet/vhs@latest"; exit 1; }
+	@command -v ttyd >/dev/null || { echo "vhs needs ttyd. Install it with:"; \
+		echo "  sudo apt install ttyd"; exit 1; }
+	@command -v ffmpeg >/dev/null || { echo "vhs needs ffmpeg. Install it with:"; \
+		echo "  sudo apt install ffmpeg"; exit 1; }
+	PATH="$(CURDIR)/bin:$$PATH" $(VHS) docs/demo.tape
+	@echo "Recorded docs/demo.gif"
 
 screenshots: ## Regenerate docs/screenshots from the TUI (needs python3 + Pillow)
 	@mkdir -p .shots
