@@ -281,7 +281,7 @@ func (m *Model) tick() tea.Cmd {
 	if wait <= 0 {
 		wait = time.Second
 	}
-	return tea.Tick(wait, func(time.Time) tea.Msg { return tickMsg{gen: gen} })
+	return common.Tick(wait, func(time.Time) tea.Msg { return tickMsg{gen: gen} })
 }
 
 func (m *Model) persist() tea.Cmd {

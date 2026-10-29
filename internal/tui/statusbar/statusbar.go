@@ -79,7 +79,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		if msg.Error {
 			ttl *= 2 // errors stay a little longer
 		}
-		return m, tea.Tick(ttl, func(time.Time) tea.Msg { return clearMsg{id: id} })
+		return m, common.Tick(ttl, func(time.Time) tea.Msg { return clearMsg{id: id} })
 	case clearMsg:
 		if msg.id == m.msgID {
 			m.msg = ""

@@ -34,6 +34,9 @@ func newFixture(t *testing.T, mod func(*domain.PomodoroSettings)) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
+	orig := common.Tick // ticks are delivered explicitly by advance()
+	common.Tick = func(time.Duration, func(time.Time) tea.Msg) tea.Cmd { return nil }
+	t.Cleanup(func() { common.Tick = orig })
 	f := &fixture{t: t, store: s, now: time.Date(2026, 10, 29, 9, 0, 0, 0, time.Local)}
 	f.task = domain.NewTask("Write thesis", f.now)
 	if err := s.CreateTask(context.Background(), &f.task); err != nil {
@@ -57,8 +60,9 @@ func newFixture(t *testing.T, mod func(*domain.PomodoroSettings)) *fixture {
 
 var cmdSlice = reflect.TypeOf([]tea.Cmd(nil))
 
-// run executes cmd synchronously, routing results back into the model.
-// Timer ticks are dropped: tests deliver them explicitly via advance.
+// run executes cmd synchronously, waiting for it however long it takes,
+// and routes results back into the model. Timers are no-ops here (see
+// newFixture); tests deliver ticks explicitly via advance.
 func (f *fixture) run(cmd tea.Cmd) {
 	if cmd == nil {
 		return
@@ -68,8 +72,8 @@ func (f *fixture) run(cmd tea.Cmd) {
 	var msg tea.Msg
 	select {
 	case msg = <-done:
-	case <-time.After(50 * time.Millisecond):
-		return // a tea.Tick: skipped
+	case <-time.After(10 * time.Second):
+		f.t.Fatalf("command did not finish within 10s")
 	}
 	switch msg := msg.(type) {
 	case nil:

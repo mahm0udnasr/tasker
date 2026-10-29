@@ -146,7 +146,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func tick() tea.Cmd {
-	return tea.Tick(refreshEvery, func(time.Time) tea.Msg { return tickMsg{} })
+	return common.Tick(refreshEvery, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (m *Model) query() listQuery {

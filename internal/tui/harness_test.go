@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/config"
 	"github.com/mahm0udnasr/tasker/internal/domain"
 	"github.com/mahm0udnasr/tasker/internal/store/sqlite"
+	"github.com/mahm0udnasr/tasker/internal/tui/common"
 )
 
 // harness drives the root model without a terminal: it feeds messages,
@@ -35,6 +37,7 @@ func newHarness(t *testing.T, w, h int) *harness {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
+	disableTimers(t)
 	hs := &harness{t: t, store: s, now: time.Date(2026, 10, 29, 14, 30, 0, 0, time.Local)}
 	cfg := config.Default()
 	hs.m = New(s, cfg, func() time.Time { return hs.now })
@@ -43,18 +46,47 @@ func newHarness(t *testing.T, w, h int) *harness {
 	return hs
 }
 
-// run executes cmd and feeds resulting messages back, depth-first. Commands
-// that don't return promptly (timers like tea.Tick) are skipped.
-func (h *harness) run(cmd tea.Cmd) {
-	if cmd == nil {
-		return
-	}
+// disableTimers makes tasker's own timers (common.Tick) no-ops for the test,
+// so every remaining command is real work that the harness can wait for.
+func disableTimers(t *testing.T) {
+	t.Helper()
+	orig := common.Tick
+	common.Tick = func(time.Duration, func(time.Time) tea.Msg) tea.Cmd { return nil }
+	t.Cleanup(func() { common.Tick = orig })
+}
+
+// runCmd waits for cmd to finish, however slow (e.g. under -race on CI).
+// A command that never finishes is a bug, so it fails the test.
+func runCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
 	done := make(chan tea.Msg, 1)
 	go func() { done <- cmd() }()
-	var msg tea.Msg
 	select {
-	case msg = <-done:
-	case <-time.After(60 * time.Millisecond):
+	case msg := <-done:
+		return msg
+	case <-time.After(10 * time.Second):
+		t.Fatalf("command did not finish within 10s")
+		return nil
+	}
+}
+
+// isCursorBlink reports whether cmd is the text-input cursor blink, the one
+// timer we can't disable (huh builds its inputs with blinking on). It is
+// identified by the function's name, without running it, so the harness
+// never has to guess what is a timer from how long a command takes.
+func isCursorBlink(cmd tea.Cmd) bool {
+	fn := runtime.FuncForPC(reflect.ValueOf(cmd).Pointer())
+	return fn != nil && strings.HasPrefix(fn.Name(), "charm.land/bubbles/v2/cursor.")
+}
+
+// run executes cmd and feeds resulting messages back, depth-first. Every
+// command except the cursor blink is waited for, however long it takes.
+func (h *harness) run(cmd tea.Cmd) {
+	if cmd == nil || isCursorBlink(cmd) {
+		return
+	}
+	msg := runCmd(h.t, cmd)
+	if msg == nil {
 		return
 	}
 	switch msg := msg.(type) {
@@ -176,3 +208,39 @@ func assertGeometry(t *testing.T, h *harness, w, ht int) {
 func configDefault() config.Config { return config.Default() }
 
 func teaSize(w, h int) tea.WindowSizeMsg { return tea.WindowSizeMsg{Width: w, Height: h} }
+
+// slowStore delays writes, like a loaded CI machine running with -race.
+type slowStore struct {
+	*sqlite.Store
+	delay time.Duration
+}
+
+func (s slowStore) UpdateTask(ctx context.Context, t *domain.Task) error {
+	time.Sleep(s.delay)
+	return s.Store.UpdateTask(ctx, t)
+}
+
+// TestHarnessWaitsForSlowCommands guards the harness itself: commands that
+// take longer than any timer-guessing threshold must still be waited for.
+// (A harness that skipped "slow" commands as timers made the reorder test
+// flaky on CI.)
+func TestHarnessWaitsForSlowCommands(t *testing.T) {
+	disableTimers(t)
+	s, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "slow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	h := &harness{t: t, store: s, now: time.Date(2026, 10, 29, 14, 30, 0, 0, time.Local)}
+	h.m = New(slowStore{Store: s, delay: 150 * time.Millisecond}, config.Default(), func() time.Time { return h.now })
+	h.send(tea.WindowSizeMsg{Width: 120, Height: 30})
+	h.run(h.m.Init())
+	h.seed("first", nil)
+	h.seed("second", nil)
+	h.keys("h", "k", "l", "ctrl+r") // Inbox, manual order
+	h.keys("J")
+	ts, _ := s.ListTasks(context.Background(), domain.Filter{View: domain.ViewInbox, Now: h.now}, domain.SortManual)
+	if len(ts) != 2 || ts[0].Title != "second" {
+		t.Fatalf("slow reorder was skipped: %v", ts)
+	}
+}

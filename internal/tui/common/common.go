@@ -13,6 +13,11 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/theme"
 )
 
+// Tick schedules a timer message. All of tasker's own timers go through it
+// so tests can replace it with a no-op and drive time explicitly, instead of
+// guessing which commands are timers by how long they take.
+var Tick = tea.Tick
+
 // Context is shared by pointer, so a theme switch reaches every component on
 // the next render.
 type Context struct {
