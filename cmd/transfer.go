@@ -22,6 +22,43 @@ type exportDoc struct {
 	ExportedAt time.Time        `json:"exported_at"`
 	Projects   []domain.Project `json:"projects"`
 	Tasks      []domain.Task    `json:"tasks"`
+	// Pomodoros holds finished focus sessions (added after v1; optional).
+	Pomodoros []exportPomodoro `json:"pomodoros,omitempty"`
+}
+
+// exportPomodoro is a finished focus session with durations in seconds.
+type exportPomodoro struct {
+	ID            string    `json:"id"`
+	TaskID        string    `json:"task_id"`
+	StartedAt     time.Time `json:"started_at"`
+	EndedAt       time.Time `json:"ended_at"`
+	LengthSeconds int64     `json:"length_seconds"`
+	PausedSeconds int64     `json:"paused_seconds,omitempty"`
+	Completed     bool      `json:"completed"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func toExportPomodoro(p domain.Pomodoro) exportPomodoro {
+	return exportPomodoro{
+		ID: p.ID, TaskID: p.TaskID, StartedAt: p.Start, EndedAt: *p.EndedAt,
+		LengthSeconds: int64(p.Length.Seconds()), PausedSeconds: int64(p.Paused.Seconds()),
+		Completed: p.Completed, UpdatedAt: p.UpdatedAt,
+	}
+}
+
+func (e exportPomodoro) domain() domain.Pomodoro {
+	end := e.EndedAt
+	p := domain.Pomodoro{
+		ID: e.ID, TaskID: e.TaskID, EndedAt: &end, Completed: e.Completed,
+		CreatedAt: e.StartedAt, UpdatedAt: e.UpdatedAt,
+	}
+	p.Start, p.Length = e.StartedAt, time.Duration(e.LengthSeconds)*time.Second
+	p.Paused = time.Duration(e.PausedSeconds) * time.Second
+	if !e.Completed {
+		// Freeze the elapsed time at the end, as Finish does for stopped sessions.
+		p.PausedAt = &end
+	}
+	return p
 }
 
 func newExportCmd(a *app) *cobra.Command {
@@ -83,7 +120,18 @@ func buildExport(ctx context.Context, s store.Store, now time.Time) (exportDoc, 
 	if ts == nil {
 		ts = []domain.Task{}
 	}
-	return exportDoc{Version: exportVersion, ExportedAt: now, Projects: ps, Tasks: ts}, nil
+	// All finished sessions: from the epoch to just after now.
+	sessions, err := s.ListPomodoros(ctx, time.Unix(0, 0), now.Add(time.Hour))
+	if err != nil {
+		return exportDoc{}, err
+	}
+	var pomos []exportPomodoro
+	for _, p := range sessions {
+		if !p.Running() {
+			pomos = append(pomos, toExportPomodoro(p))
+		}
+	}
+	return exportDoc{Version: exportVersion, ExportedAt: now, Projects: ps, Tasks: ts, Pomodoros: pomos}, nil
 }
 
 func newImportCmd(a *app) *cobra.Command {
@@ -186,5 +234,13 @@ func importDoc(ctx context.Context, s store.Store, doc exportDoc, dryRun bool) (
 	if err := s.RestoreProjects(ctx, newProjects); err != nil {
 		return res, err
 	}
-	return res, s.RestoreTasks(ctx, toWrite)
+	if err := s.RestoreTasks(ctx, toWrite); err != nil {
+		return res, err
+	}
+	// Sessions are keyed by ID, so re-importing is idempotent.
+	pomos := make([]domain.Pomodoro, 0, len(doc.Pomodoros))
+	for _, p := range doc.Pomodoros {
+		pomos = append(pomos, p.domain())
+	}
+	return res, s.RestorePomodoros(ctx, pomos)
 }

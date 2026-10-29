@@ -214,3 +214,12 @@ func TestTooSmall(t *testing.T) {
 	h := newHarness(t, 30, 8)
 	h.contains("Terminal too small")
 }
+
+func TestTinyAndZeroSizesNeverPanic(t *testing.T) {
+	for _, size := range [][2]int{{0, 0}, {1, 1}, {10, 3}, {39, 9}, {40, 10}} {
+		h := newHarness(t, size[0], size[1])
+		seedDemo(h)
+		h.keys("G", "v", "esc", "P", "z", "esc", "/", "esc", "?", "esc")
+		_ = h.screen()
+	}
+}

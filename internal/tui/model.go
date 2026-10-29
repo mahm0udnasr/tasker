@@ -18,6 +18,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/theme"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/detail"
+	"github.com/mahm0udnasr/tasker/internal/tui/pomodoro"
 	"github.com/mahm0udnasr/tasker/internal/tui/sidebar"
 	"github.com/mahm0udnasr/tasker/internal/tui/statusbar"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
@@ -54,6 +55,9 @@ type Model struct {
 	projects []domain.Project
 	counts   domain.Counts
 	undo     undoStack
+	// pomo is shared by pointer so the status bar, list and focus overlay
+	// render one live timer (Update runs on a single goroutine).
+	pomo *pomodoro.Model
 
 	showDetail bool                      // user preference; hidden anyway when too narrow
 	sorts      map[string]domain.SortKey // per-scope sort overrides
@@ -88,6 +92,9 @@ func New(s store.Store, cfg config.Config, now func() time.Time) Model {
 		status:     statusbar.New(ctx),
 		showDetail: cfg.ShowDetail,
 		sorts:      map[string]domain.SortKey{},
+		pomo: pomodoro.New(ctx, s, pomodoro.Options{
+			Settings: cfg.Pomodoro.Settings(), Notify: cfg.Pomodoro.Notify, Bell: cfg.Pomodoro.Bell,
+		}),
 	}
 	m.setScope(m.sidebar.Selected())
 	m.applyFocus()
@@ -116,6 +123,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadTasks(m.store, m.loadGen, m.query(), m.ctx.Now()),
 		loadSidebar(m.store, m.ctx.Now()),
+		m.pomo.Init(),
 		tick(),
 	)
 }

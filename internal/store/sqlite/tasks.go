@@ -17,12 +17,15 @@ import (
 // ',' is a safe encoding.
 const taskColumns = `
 	t.id, COALESCE(t.parent_id, ''), COALESCE(t.project_id, ''), t.title, t.description,
-	t.status, t.priority, t.due_at, t.due_has_time, t.sort_order,
+	t.status, t.priority, t.due_at, t.due_has_time, t.sort_order, t.estimate,
 	t.created_at, t.updated_at, t.completed_at, t.deleted_at,
 	(SELECT COUNT(*) FROM tasks s WHERE s.parent_id = t.id AND s.deleted_at IS NULL),
 	(SELECT COUNT(*) FROM tasks s WHERE s.parent_id = t.id AND s.deleted_at IS NULL AND s.status = 'done'),
 	COALESCE((SELECT group_concat(g.name, ',') FROM task_tags tt JOIN tags g ON g.id = tt.tag_id
-	          WHERE tt.task_id = t.id), '')`
+	          WHERE tt.task_id = t.id), ''),
+	(SELECT COUNT(*) FROM pomodoros p WHERE p.task_id = t.id AND p.deleted_at IS NULL AND p.completed = 1),
+	(SELECT COALESCE(SUM(MIN(p.ended_at - p.started_at - p.paused_ms, p.length_ms)), 0)
+	   FROM pomodoros p WHERE p.task_id = t.id AND p.deleted_at IS NULL AND p.ended_at IS NOT NULL)`
 
 func scanTask(sc interface{ Scan(...any) error }) (domain.Task, error) {
 	var (
@@ -32,15 +35,17 @@ func scanTask(sc interface{ Scan(...any) error }) (domain.Task, error) {
 		created, updated        int64
 		hasTime                 bool
 		tags                    string
+		focusMS                 int64
 	)
 	err := sc.Scan(&t.ID, &t.ParentID, &t.ProjectID, &t.Title, &t.Description,
-		&status, &t.Priority, &due, &hasTime, &t.SortOrder,
+		&status, &t.Priority, &due, &hasTime, &t.SortOrder, &t.Estimate,
 		&created, &updated, &completed, &deleted,
-		&t.SubtasksTotal, &t.SubtasksDone, &tags)
+		&t.SubtasksTotal, &t.SubtasksDone, &tags, &t.PomodorosDone, &focusMS)
 	if err != nil {
 		return t, err
 	}
 	t.Status = domain.Status(status)
+	t.FocusTime = time.Duration(focusMS) * time.Millisecond
 	t.Due = fromNullMS(due)
 	t.DueHasTime = hasTime
 	t.CreatedAt, t.UpdatedAt = fromMS(created), fromMS(updated)
@@ -269,10 +274,10 @@ func (s *Store) UpdateTask(ctx context.Context, t *domain.Task) error {
 		}
 		res, err := tx.ExecContext(ctx, `UPDATE tasks SET
 			parent_id = ?, project_id = ?, title = ?, description = ?, status = ?, priority = ?,
-			due_at = ?, due_has_time = ?, sort_order = ?, updated_at = ?, completed_at = ?
+			due_at = ?, due_has_time = ?, sort_order = ?, estimate = ?, updated_at = ?, completed_at = ?
 			WHERE id = ? AND deleted_at IS NULL`,
 			nullStr(t.ParentID), nullStr(t.ProjectID), t.Title, t.Description, string(t.Status), t.Priority,
-			toNullMS(t.Due), t.DueHasTime, t.SortOrder, toMS(t.UpdatedAt), toNullMS(t.CompletedAt), t.ID)
+			toNullMS(t.Due), t.DueHasTime, t.SortOrder, t.Estimate, toMS(t.UpdatedAt), toNullMS(t.CompletedAt), t.ID)
 		if err != nil {
 			return fmt.Errorf("update task: %w", err)
 		}
@@ -292,18 +297,18 @@ func (s *Store) UpdateTask(ctx context.Context, t *domain.Task) error {
 // upsertTask writes every column. With overwrite=false it is a plain insert.
 func upsertTask(ctx context.Context, tx *sql.Tx, t *domain.Task, overwrite bool) error {
 	q := `INSERT INTO tasks (id, parent_id, project_id, title, description, status, priority,
-		due_at, due_has_time, sort_order, created_at, updated_at, completed_at, deleted_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		due_at, due_has_time, sort_order, estimate, created_at, updated_at, completed_at, deleted_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if overwrite {
 		q += ` ON CONFLICT(id) DO UPDATE SET parent_id = excluded.parent_id,
 			project_id = excluded.project_id, title = excluded.title, description = excluded.description,
 			status = excluded.status, priority = excluded.priority, due_at = excluded.due_at,
-			due_has_time = excluded.due_has_time, sort_order = excluded.sort_order,
+			due_has_time = excluded.due_has_time, sort_order = excluded.sort_order, estimate = excluded.estimate,
 			created_at = excluded.created_at, updated_at = excluded.updated_at,
 			completed_at = excluded.completed_at, deleted_at = excluded.deleted_at`
 	}
 	_, err := tx.ExecContext(ctx, q, t.ID, nullStr(t.ParentID), nullStr(t.ProjectID), t.Title,
-		t.Description, string(t.Status), t.Priority, toNullMS(t.Due), t.DueHasTime, t.SortOrder,
+		t.Description, string(t.Status), t.Priority, toNullMS(t.Due), t.DueHasTime, t.SortOrder, t.Estimate,
 		toMS(t.CreatedAt), toMS(t.UpdatedAt), toNullMS(t.CompletedAt), toNullMS(t.DeletedAt))
 	if err != nil {
 		return fmt.Errorf("write task: %w", err)
@@ -381,6 +386,9 @@ func (s *Store) ChangesSince(ctx context.Context, since time.Time) (store.Change
 	if err != nil {
 		return cs, err
 	}
-	cs.Projects, err = s.queryProjects(ctx, "updated_at > ?", toMS(since))
+	if cs.Projects, err = s.queryProjects(ctx, "updated_at > ?", toMS(since)); err != nil {
+		return cs, err
+	}
+	cs.Pomodoros, err = s.queryPomodoros(ctx, s.db, "updated_at > ?", toMS(since))
 	return cs, err
 }

@@ -172,3 +172,7 @@ func assertGeometry(t *testing.T, h *harness, w, ht int) {
 		}
 	}
 }
+
+func configDefault() config.Config { return config.Default() }
+
+func teaSize(w, h int) tea.WindowSizeMsg { return tea.WindowSizeMsg{Width: w, Height: h} }

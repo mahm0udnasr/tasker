@@ -72,3 +72,19 @@ func TestPaths(t *testing.T) {
 		t.Errorf("TASKER_DB ignored: %q", p)
 	}
 }
+
+func TestPomodoroSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	_ = os.WriteFile(path, []byte("[pomodoro]\nfocus_minutes = 50\nshort_break_minutes = -3\nlong_break_every = 0\n"), 0o600)
+	cfg, _, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.Pomodoro.Settings()
+	if s.Focus.Minutes() != 50 || s.ShortBreak.Minutes() != 5 || s.LongEvery != 4 || s.LongBreak.Minutes() != 15 {
+		t.Errorf("settings = %+v", s)
+	}
+	if !s.AutoBreaks || !cfg.Pomodoro.Notify { // untouched keys keep their defaults
+		t.Errorf("defaults lost: %+v", cfg.Pomodoro)
+	}
+}

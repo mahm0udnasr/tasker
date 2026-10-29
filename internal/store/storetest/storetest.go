@@ -40,6 +40,8 @@ func Run(t *testing.T, newStore Factory) {
 		{"CountsAndTags", testCountsAndTags},
 		{"Stats", testStats},
 		{"ChangesSince", testChangesSince},
+		{"Pomodoros", testPomodoros},
+		{"Estimate", testEstimate},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -496,5 +498,91 @@ func testChangesSince(t *testing.T, s store.Store) {
 	}
 	if len(cs.Tasks) != 1 || cs.Tasks[0].ID != fresh.ID || len(cs.Projects) != 1 {
 		t.Errorf("changes = %d tasks, %d projects", len(cs.Tasks), len(cs.Projects))
+	}
+}
+
+func testPomodoros(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	task := mustCreate(t, s, "focus target", nil)
+	other := mustCreate(t, s, "other", nil)
+
+	if _, err := s.ActivePomodoro(ctx); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("no active session expected: %v", err)
+	}
+
+	// A completed session.
+	p1 := domain.NewPomodoro(task.ID, 25*time.Minute, now)
+	if err := s.CreatePomodoro(ctx, &p1); err != nil {
+		t.Fatal(err)
+	}
+	// Only one session may run at a time.
+	p2 := domain.NewPomodoro(other.ID, 25*time.Minute, now)
+	if err := s.CreatePomodoro(ctx, &p2); !errors.Is(err, store.ErrSessionRunning) {
+		t.Errorf("second running session err = %v", err)
+	}
+	// Pause state round-trips through ActivePomodoro.
+	p1.Pause(now.Add(5 * time.Minute))
+	p1.UpdatedAt = now.Add(5 * time.Minute)
+	if err := s.UpdatePomodoro(ctx, &p1); err != nil {
+		t.Fatal(err)
+	}
+	active, err := s.ActivePomodoro(ctx)
+	if err != nil || active.ID != p1.ID || !active.IsPaused() || active.Length != 25*time.Minute {
+		t.Fatalf("active = %+v, %v", active, err)
+	}
+	p1.Resume(now.Add(10 * time.Minute))
+	p1.Finish(now.Add(40 * time.Minute)) // ran out at +30m (25m + 5m paused)
+	if err := s.UpdatePomodoro(ctx, &p1); err != nil {
+		t.Fatal(err)
+	}
+
+	// An interrupted session: 10 minutes of focus.
+	p3 := domain.NewPomodoro(task.ID, 25*time.Minute, now.Add(time.Hour))
+	if err := s.CreatePomodoro(ctx, &p3); err != nil {
+		t.Fatal(err)
+	}
+	p3.Finish(now.Add(time.Hour + 10*time.Minute))
+	if err := s.UpdatePomodoro(ctx, &p3); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PomodorosDone != 1 || got.FocusTime != 35*time.Minute {
+		t.Errorf("derived: done=%d focus=%v, want 1 and 35m", got.PomodorosDone, got.FocusTime)
+	}
+	if _, err := s.ActivePomodoro(ctx); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("all sessions ended, active err = %v", err)
+	}
+	ps, err := s.ListPomodoros(ctx, now, now.Add(2*time.Hour))
+	if err != nil || len(ps) != 2 || !ps[0].Completed || ps[1].Completed {
+		t.Errorf("list = %+v, %v", ps, err)
+	}
+	if ps, _ := s.ListPomodoros(ctx, now.Add(30*time.Minute), now.Add(2*time.Hour)); len(ps) != 1 {
+		t.Errorf("range filter: %d", len(ps))
+	}
+
+	ghost := domain.NewPomodoro(domain.NewID(), time.Minute, now)
+	if err := s.CreatePomodoro(ctx, &ghost); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("session for missing task err = %v", err)
+	}
+}
+
+func testEstimate(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	task := mustCreate(t, s, "estimated", func(t *domain.Task) { t.Estimate = 4 })
+	got, _ := s.GetTask(ctx, task.ID)
+	if got.Estimate != 4 || got.PomodoroProgress() != "0/4" {
+		t.Errorf("estimate = %d, progress %q", got.Estimate, got.PomodoroProgress())
+	}
+	got.Estimate = 6
+	if err := s.UpdateTask(ctx, &got); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.GetTask(ctx, task.ID)
+	if got.Estimate != 6 {
+		t.Errorf("updated estimate = %d", got.Estimate)
 	}
 }

@@ -80,6 +80,7 @@ type TaskDraft struct {
 	Priority    domain.Priority
 	Project     string // project name; "" = Inbox
 	Tags        string // comma-separated
+	Estimate    string // planned pomodoros; "" or "0" for none
 }
 
 // SaveDraftMsg asks the root to persist a draft.

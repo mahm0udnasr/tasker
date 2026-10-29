@@ -13,6 +13,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/service"
 	"github.com/mahm0udnasr/tasker/internal/store"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
+	"github.com/mahm0udnasr/tasker/internal/tui/form"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
 )
 
@@ -223,6 +224,9 @@ func saveDraft(s store.Store, d common.TaskDraft, now time.Time) tea.Cmd {
 		if err := t.SetTags(strings.Split(d.Tags, ",")); err != nil {
 			return mutatedMsg{}, err
 		}
+		if t.Estimate, err = form.ParseEstimate(d.Estimate); err != nil {
+			return mutatedMsg{}, err
+		}
 		var note string
 		if t.ParentID == "" {
 			var created bool
@@ -301,6 +305,23 @@ func deleteProject(s store.Store, p domain.Project, now time.Time) tea.Cmd {
 		text := "Deleted project “" + p.Name + "”"
 		return mutatedMsg{text: text + " · tasks moved to Inbox",
 			undo: &undoEntry{desc: text, projects: []domain.Project{p}, tasks: tasks}}, nil
+	})
+}
+
+// completeTask marks a task done by ID (from focus mode), undoably.
+func completeTask(s store.Store, id string, now time.Time) tea.Cmd {
+	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		t, err := s.GetTask(ctx, id)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
+		before := t
+		t.SetStatus(domain.StatusDone, now)
+		if err := s.UpdateTask(ctx, &t); err != nil {
+			return mutatedMsg{}, err
+		}
+		text := "Completed “" + t.Title + "”"
+		return mutatedMsg{text: text, selectID: t.ID, undo: &undoEntry{desc: text, tasks: []domain.Task{before}}}, nil
 	})
 }
 

@@ -97,6 +97,9 @@ func titleCell(t domain.Task, indent string) string {
 	if p := t.SubtaskProgress(); p != "" {
 		out += " " + styles.dim.Render("["+p+"]")
 	}
+	if p := t.PomodoroProgress(); p != "" {
+		out += " " + styles.dim.Render("🍅"+p)
+	}
 	return out
 }
 
@@ -135,10 +138,11 @@ func (t *table) print(w io.Writer) {
 // jsonTask is the machine-readable task shape for --json output.
 type jsonTask struct {
 	domain.Task
-	ShortID  string     `json:"short_id"`
-	Project  string     `json:"project,omitempty"`
-	Overdue  bool       `json:"overdue,omitempty"`
-	Subtasks []jsonTask `json:"subtasks,omitempty"`
+	ShortID      string     `json:"short_id"`
+	FocusSeconds int64      `json:"focus_seconds,omitempty"`
+	Project      string     `json:"project,omitempty"`
+	Overdue      bool       `json:"overdue,omitempty"`
+	Subtasks     []jsonTask `json:"subtasks,omitempty"`
 }
 
 func writeJSON(w io.Writer, v any) error {

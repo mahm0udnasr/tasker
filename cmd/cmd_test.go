@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mahm0udnasr/tasker/internal/domain"
+	"github.com/mahm0udnasr/tasker/internal/store/sqlite"
 )
 
 // cli runs commands against an isolated database and config.
@@ -245,5 +248,82 @@ func TestParseEditFileErrors(t *testing.T) {
 		if _, err := parseEditFile(tt.in); err == nil {
 			t.Errorf("%s: expected error", tt.name)
 		}
+	}
+}
+
+func TestEstimateAndFocusCommands(t *testing.T) {
+	c := newCLI(t)
+	c.mustRun("add", "Thesis", "-E", "4")
+	ts := c.listJSON()
+	if ts[0].Estimate != 4 {
+		t.Fatalf("estimate = %d", ts[0].Estimate)
+	}
+	out := c.mustRun("list")
+	if !strings.Contains(out, "🍅0/4") {
+		t.Errorf("list output missing pomodoro progress:\n%s", out)
+	}
+
+	if out := c.mustRun("focus", "--status"); !strings.Contains(out, "No focus session") {
+		t.Errorf("status when idle: %s", out)
+	}
+	if _, err := c.run("focus", "--stop"); err == nil {
+		t.Error("--stop with nothing running should fail")
+	}
+
+	// Start a session through the store (the interactive timer needs a TTY),
+	// then check --status and --stop.
+	ctx := context.Background()
+	s, err := sqlite.Open(ctx, c.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := domain.NewPomodoro(ts[0].ID, 25*time.Minute, c.now.Add(-10*time.Minute))
+	if err := s.CreatePomodoro(ctx, &p); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+
+	if out := c.mustRun("focus", "--status"); !strings.Contains(out, "15:00 left on Thesis") {
+		t.Errorf("status: %s", out)
+	}
+	if out := c.mustRun("focus", "--stop"); !strings.Contains(out, "10m of focus recorded") {
+		t.Errorf("stop: %s", out)
+	}
+	if got := c.listJSON(); got[0].FocusSeconds != 600 || got[0].PomodorosDone != 0 {
+		t.Errorf("after stop: focus=%d done=%d", got[0].FocusSeconds, got[0].PomodorosDone)
+	}
+	c.mustRun("edit", ts[0].ShortID, "-E", "0")
+	if got := c.listJSON(); got[0].Estimate != 0 {
+		t.Errorf("estimate not cleared: %d", got[0].Estimate)
+	}
+}
+
+func TestExportImportKeepsFocusHistory(t *testing.T) {
+	src := newCLI(t)
+	src.mustRun("add", "Thesis", "-E", "3")
+	id := src.listJSON()[0].ID
+	ctx := context.Background()
+	s, err := sqlite.Open(ctx, src.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := domain.NewPomodoro(id, 25*time.Minute, src.now.Add(-time.Hour))
+	_ = s.CreatePomodoro(ctx, &done)
+	done.Finish(src.now)
+	_ = s.UpdatePomodoro(ctx, &done)
+	cut := domain.NewPomodoro(id, 25*time.Minute, src.now)
+	_ = s.CreatePomodoro(ctx, &cut)
+	cut.Finish(src.now.Add(5 * time.Minute))
+	_ = s.UpdatePomodoro(ctx, &cut)
+	_ = s.Close()
+
+	file := filepath.Join(t.TempDir(), "export.json")
+	src.mustRun("export", "-o", file)
+	dst := newCLI(t)
+	dst.mustRun("import", file)
+	dst.mustRun("import", file) // idempotent
+	got := dst.listJSON()[0]
+	if got.PomodorosDone != 1 || got.FocusSeconds != 30*60 || got.Estimate != 3 {
+		t.Errorf("after import: done=%d focus=%ds estimate=%d", got.PomodorosDone, got.FocusSeconds, got.Estimate)
 	}
 }

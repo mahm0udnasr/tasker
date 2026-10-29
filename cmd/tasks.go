@@ -191,10 +191,11 @@ func newListCmd(a *app) *cobra.Command {
 
 func (a *app) toJSON(t domain.Task, projects map[string]domain.Project) jsonTask {
 	return jsonTask{
-		Task:    t,
-		ShortID: domain.ShortID(t.ID),
-		Project: projects[t.ProjectID].Name,
-		Overdue: t.IsOverdue(a.now()),
+		Task:         t,
+		ShortID:      domain.ShortID(t.ID),
+		FocusSeconds: int64(t.FocusTime.Seconds()),
+		Project:      projects[t.ProjectID].Name,
+		Overdue:      t.IsOverdue(a.now()),
 	}
 }
 
@@ -270,6 +271,16 @@ func newShowCmd(a *app) *cobra.Command {
 				field("project", styles.dim.Render("Inbox"))
 			}
 			field("tags", tagChips(t.Tags))
+			if t.Estimate > 0 || t.PomodorosDone > 0 || t.FocusTime > 0 {
+				focus := fmt.Sprintf("🍅 %s pomodoros", t.PomodoroProgress())
+				if t.PomodoroProgress() == "" {
+					focus = "🍅 0 pomodoros"
+				}
+				if t.FocusTime > 0 {
+					focus += " · " + domain.FormatFocus(t.FocusTime)
+				}
+				field("focus", focus)
+			}
 			field("created", t.CreatedAt.Format("Mon 2 Jan 2006 15:04"))
 			if t.CompletedAt != nil {
 				field("completed", t.CompletedAt.Format("Mon 2 Jan 2006 15:04"))

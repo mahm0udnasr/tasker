@@ -31,6 +31,7 @@ type Model struct {
 	msgID    int
 	hints    []key.Binding
 	progress progress.Model
+	timer    string // pomodoro segment; replaces the progress bar when set
 }
 
 // New creates a status bar.
@@ -60,6 +61,9 @@ func (m *Model) SetView(v string) { m.view = v }
 
 // SetCounts updates counts used for the summary and progress.
 func (m *Model) SetCounts(c domain.Counts) { m.counts = c }
+
+// SetTimer shows a running pomodoro instead of today's progress.
+func (m *Model) SetTimer(s string) { m.timer = s }
 
 // SetHints sets the key hints shown on the right.
 func (m *Model) SetHints(h []key.Binding) { m.hints = h }
@@ -108,6 +112,9 @@ func (m Model) View() string {
 	pct := m.counts.TodayProgress()
 	prog := st.Muted.Render("today ") + m.progress.ViewAs(pct) +
 		st.Subtext.Render(fmt.Sprintf(" %3.0f%%", pct*100))
+	if m.timer != "" {
+		prog = m.timer
+	}
 
 	var hints []string
 	for _, h := range m.hints {

@@ -2,6 +2,7 @@
 package form
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -47,6 +48,9 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 		d.ID, d.ParentID = t.ID, t.ParentID
 		d.Title, d.Description, d.Priority = t.Title, t.Description, t.Priority
 		d.Tags = strings.Join(t.Tags, ", ")
+		if t.Estimate > 0 {
+			d.Estimate = strconv.Itoa(t.Estimate)
+		}
 		if t.Due != nil {
 			d.Due = t.Due.Format("2006-01-02")
 			if t.DueHasTime {
@@ -84,7 +88,12 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 			Placeholder("Inbox").Suggestions(o.Projects).Value(&d.Project))
 	}
 	fields = append(fields, huh.NewInput().Key("tags").Title("Tags").
-		Placeholder("comma, separated").Value(&d.Tags))
+		Placeholder("comma, separated").Value(&d.Tags),
+		huh.NewInput().Key("estimate").Title("Estimate").Placeholder("pomodoros, e.g. 4 (optional)").
+			Value(&d.Estimate).CharLimit(2).Validate(func(s string) error {
+			_, err := ParseEstimate(s)
+			return err
+		}))
 
 	f := huh.NewForm(huh.NewGroup(fields...)).
 		WithTheme(huhTheme(ctx)).
@@ -162,6 +171,11 @@ func (m *Model) submit() tea.Cmd {
 		m.form.State = huh.StateNormal
 		return nil
 	}
+	if _, err := ParseEstimate(d.Estimate); err != nil {
+		m.err = err.Error()
+		m.form.State = huh.StateNormal
+		return nil
+	}
 	return tea.Sequence(common.CloseOverlay, func() tea.Msg { return common.SaveDraftMsg{Draft: d} })
 }
 
@@ -211,6 +225,19 @@ func huhTheme(ctx *common.Context) huh.Theme {
 		t.FieldSeparator = lipgloss.NewStyle().SetString("\n")
 		return t
 	})
+}
+
+// ParseEstimate reads the estimate field: empty means none.
+func ParseEstimate(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 || n > domain.MaxEstimate {
+		return 0, domain.ErrInvalidEstimate
+	}
+	return n, nil
 }
 
 // trimBlankLines drops the trailing empty lines huh pads its group with

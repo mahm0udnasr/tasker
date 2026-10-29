@@ -24,6 +24,7 @@ var helpSections = []struct {
 	{"Tasks", []string{common.ActAdd, common.ActAddSubtask, common.ActEdit, common.ActToggleDone,
 		common.ActToggleStart, common.ActDelete, common.ActPriority, common.ActDue, common.ActMove,
 		common.ActMoveUp, common.ActMoveDown}},
+	{"Pomodoro", []string{common.ActPomodoro, common.ActPomoStop, common.ActPomoSkip, common.ActFocusMode}},
 	{"General", []string{common.ActSearch, common.ActPalette, common.ActFilter, common.ActClearFilter,
 		common.ActSort, common.ActUndo, common.ActDetail, common.ActDelProject, common.ActRefresh,
 		common.ActHelp, common.ActQuit}},
@@ -58,15 +59,24 @@ func (h *Help) View() string {
 		cols = append(cols, strings.Join(lines, "\n"))
 	}
 	gap := "    "
-	// Widest layout that fits: all sections side by side, then two columns
-	// with the last sections stacked, then a single column.
-	body := lipgloss.JoinHorizontal(lipgloss.Top, cols[0], gap, cols[1], gap, cols[2])
+	v := func(parts ...string) string {
+		var withGaps []string
+		for i, p := range parts {
+			if i > 0 {
+				withGaps = append(withGaps, "")
+			}
+			withGaps = append(withGaps, p)
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, withGaps...)
+	}
+	// Widest layout that fits: three columns, then two, then one.
+	nav, tasks, pomo, general := cols[0], cols[1], cols[2], cols[3]
+	body := lipgloss.JoinHorizontal(lipgloss.Top, nav, gap, tasks, gap, v(pomo, general))
 	if lipgloss.Width(body)+8 > h.ctx.Width {
-		body = lipgloss.JoinHorizontal(lipgloss.Top, cols[0], gap,
-			lipgloss.JoinVertical(lipgloss.Left, cols[1], "", cols[2]))
+		body = lipgloss.JoinHorizontal(lipgloss.Top, v(nav, pomo), gap, v(tasks, general))
 	}
 	if lipgloss.Width(body)+8 > h.ctx.Width {
-		body = lipgloss.JoinVertical(lipgloss.Left, cols[0], "", cols[1], "", cols[2])
+		body = v(nav, tasks, pomo, general)
 	}
 	footer := st.KeyDesc.Render("esc to close · rebind keys in config.toml")
 	return st.Modal.Padding(1, 2).Render(lipgloss.JoinVertical(lipgloss.Left,

@@ -132,8 +132,10 @@ type Task struct {
 	Due         *time.Time `json:"due,omitempty"`
 	// DueHasTime distinguishes "friday" (all day; Due is local midnight)
 	// from "friday 5pm".
-	DueHasTime  bool       `json:"due_has_time,omitempty"`
-	Tags        []string   `json:"tags,omitempty"`
+	DueHasTime bool     `json:"due_has_time,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
+	// Estimate is the planned number of pomodoros (0 = no estimate).
+	Estimate    int        `json:"estimate,omitempty"`
 	SortOrder   float64    `json:"sort_order"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
@@ -143,6 +145,10 @@ type Task struct {
 	// Derived fields filled in by the store on reads; never persisted.
 	SubtasksTotal int `json:"subtasks_total,omitempty"`
 	SubtasksDone  int `json:"subtasks_done,omitempty"`
+	// PomodorosDone counts completed focus sessions; FocusTime sums all
+	// focus time, including sessions stopped early.
+	PomodorosDone int           `json:"pomodoros_done,omitempty"`
+	FocusTime     time.Duration `json:"-"`
 }
 
 // NewID returns a fresh random identifier. Random (v4) rather than
@@ -183,6 +189,8 @@ func (t *Task) Validate() error {
 		return fmt.Errorf("%w: %d", ErrInvalidPrio, t.Priority)
 	case t.ParentID != "" && t.ParentID == t.ID:
 		return ErrSelfParent
+	case t.Estimate < 0 || t.Estimate > MaxEstimate:
+		return ErrInvalidEstimate
 	}
 	for _, tag := range t.Tags {
 		if _, err := NormalizeTag(tag); err != nil {
@@ -273,6 +281,18 @@ func (t Task) IsOverdue(now time.Time) bool {
 // IsDueToday reports whether the due date falls on now's calendar day.
 func (t Task) IsDueToday(now time.Time) bool {
 	return t.Due != nil && SameDay(*t.Due, now)
+}
+
+// PomodoroProgress returns "3/4" with an estimate, "3" without, or "" when
+// there is neither.
+func (t Task) PomodoroProgress() string {
+	switch {
+	case t.Estimate > 0:
+		return fmt.Sprintf("%d/%d", t.PomodorosDone, t.Estimate)
+	case t.PomodorosDone > 0:
+		return fmt.Sprintf("%d", t.PomodorosDone)
+	}
+	return ""
 }
 
 // SubtaskProgress returns "done/total" or "" when the task has no subtasks.

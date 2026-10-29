@@ -39,6 +39,10 @@ const (
 	ActUndo        = "undo"
 	ActDetail      = "toggle_detail"
 	ActPalette     = "palette"
+	ActPomodoro    = "pomodoro"
+	ActPomoStop    = "pomodoro_stop"
+	ActPomoSkip    = "pomodoro_skip"
+	ActFocusMode   = "focus_mode"
 )
 
 type actionDef struct {
@@ -80,6 +84,10 @@ var defaults = []actionDef{
 	{ActUndo, []string{"u"}, "", "undo"},
 	{ActDetail, []string{"v"}, "", "toggle detail pane"},
 	{ActPalette, []string{"ctrl+p", ":"}, "ctrl+p", "command palette"},
+	{ActPomodoro, []string{"P"}, "", "start / pause pomodoro"},
+	{ActPomoStop, []string{"X"}, "", "stop pomodoro"},
+	{ActPomoSkip, []string{">"}, "", "skip to next phase"},
+	{ActFocusMode, []string{"z"}, "", "focus mode"},
 	{ActRefresh, []string{"ctrl+r"}, "", "reload"},
 	{ActHelp, []string{"?"}, "", "toggle help"},
 	{ActQuit, []string{"q", "ctrl+c"}, "q", "quit"},

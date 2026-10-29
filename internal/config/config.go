@@ -9,8 +9,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/mahm0udnasr/tasker/internal/domain"
 )
 
 // AppName names the config and data directories.
@@ -39,6 +42,45 @@ type Config struct {
 	Keys map[string][]string `toml:"keys,omitempty"`
 	// Seen records that the first-run welcome screen was shown.
 	Seen bool `toml:"seen_welcome"`
+	// Pomodoro configures the focus timer.
+	Pomodoro Pomodoro `toml:"pomodoro"`
+}
+
+// Pomodoro is the [pomodoro] section.
+type Pomodoro struct {
+	FocusMinutes      int  `toml:"focus_minutes"`
+	ShortBreakMinutes int  `toml:"short_break_minutes"`
+	LongBreakMinutes  int  `toml:"long_break_minutes"`
+	LongBreakEvery    int  `toml:"long_break_every"`
+	AutoStartBreaks   bool `toml:"auto_start_breaks"`
+	AutoStartFocus    bool `toml:"auto_start_focus"`
+	// Notify sends a desktop notification (notify-send) when a phase ends.
+	Notify bool `toml:"notify"`
+	// Bell rings the terminal bell when a phase ends.
+	Bell bool `toml:"bell"`
+}
+
+// Settings converts the config into domain settings, clamping nonsense
+// values (0 or negative minutes) to sane ranges.
+func (p Pomodoro) Settings() domain.PomodoroSettings {
+	clamp := func(v, lo, hi, def int) time.Duration {
+		if v <= 0 {
+			v = def
+		}
+		return time.Duration(max(lo, min(v, hi))) * time.Minute
+	}
+	every := p.LongBreakEvery
+	if every <= 0 {
+		every = 4
+	}
+	return domain.PomodoroSettings{
+		Focus:      clamp(p.FocusMinutes, 1, 180, 25),
+		ShortBreak: clamp(p.ShortBreakMinutes, 1, 60, 5),
+		LongBreak:  clamp(p.LongBreakMinutes, 1, 120, 15),
+		LongEvery:  every,
+		AutoBreaks: p.AutoStartBreaks,
+		AutoFocus:  p.AutoStartFocus,
+	}
 }
 
 // Default returns the configuration used when no file exists.
@@ -48,6 +90,10 @@ func Default() Config {
 		Icons:       IconsNerd,
 		DefaultView: "today",
 		ShowDetail:  true,
+		Pomodoro: Pomodoro{
+			FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, LongBreakEvery: 4,
+			AutoStartBreaks: true, Notify: true, Bell: true,
+		},
 	}
 }
 

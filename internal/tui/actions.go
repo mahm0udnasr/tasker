@@ -12,6 +12,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/form"
 	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
+	"github.com/mahm0udnasr/tasker/internal/tui/pomodoro"
 )
 
 // action is a user command. The same registry backs key bindings (by name)
@@ -53,6 +54,17 @@ func init() {
 		}},
 		{common.ActHelp, "Keyboard shortcuts", false, func(m *Model, _ domain.Task) tea.Cmd {
 			return m.pushOverlay(overlay.NewHelp(m.ctx), nil)
+		}},
+		{common.ActPomodoro, "Start / pause pomodoro", false, func(m *Model, t domain.Task) tea.Cmd {
+			if t.ID == "" {
+				return m.pomo.Toggle(nil)
+			}
+			return m.pomo.Toggle(&t)
+		}},
+		{common.ActPomoStop, "Stop pomodoro", false, func(m *Model, _ domain.Task) tea.Cmd { return m.pomo.Stop() }},
+		{common.ActPomoSkip, "Skip to next pomodoro phase", false, func(m *Model, _ domain.Task) tea.Cmd { return m.pomo.Skip() }},
+		{common.ActFocusMode, "Focus mode", false, func(m *Model, _ domain.Task) tea.Cmd {
+			return m.pushOverlay(pomodoro.NewFocusOverlay(m.pomo), nil)
 		}},
 		{common.ActPalette, "Command palette", false, (*Model).openPalette},
 		{common.ActQuit, "Quit", false, func(*Model, domain.Task) tea.Cmd { return tea.Quit }},

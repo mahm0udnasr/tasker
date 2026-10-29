@@ -2,11 +2,13 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
+	"github.com/mahm0udnasr/tasker/internal/tui/pomodoro"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
 )
 
@@ -18,7 +20,16 @@ import (
 //
 // Anything unrecognized (cursor blinks, huh internals, status timers) is
 // forwarded to the top overlay and the status bar.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
+	defer func() {
+		if r := recover(); r != nil {
+			model, cmd = m, common.ErrorCmd(fmt.Errorf("internal error (please report): %v", r))
+		}
+	}()
+	return m.update(msg)
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -140,6 +151,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case deleteProjectMsg:
 		return m, deleteProject(m.store, msg.project, m.ctx.Now())
 
+	case pomodoro.ChangedMsg:
+		return m, m.reload()
+
+	case pomodoro.CompleteTaskMsg:
+		return m, completeTask(m.store, msg.TaskID, m.ctx.Now())
+
 	case tea.KeyPressMsg:
 		if len(m.overlays) > 0 {
 			return m, m.forwardToOverlay(msg)
@@ -148,7 +165,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmds []tea.Cmd
-	cmds = append(cmds, m.forwardToOverlay(msg))
+	cmds = append(cmds, m.forwardToOverlay(msg), m.pomo.Update(msg))
 	var cmd tea.Cmd
 	m.status, cmd = m.status.Update(msg)
 	return m, tea.Batch(append(cmds, cmd)...)

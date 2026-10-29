@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 
@@ -50,5 +51,41 @@ func TestRejectsNewerSchema(t *testing.T) {
 	_ = s.Close()
 	if _, err := Open(context.Background(), path); err == nil {
 		t.Fatal("expected error opening a newer schema")
+	}
+}
+
+// TestUpgradeFromV1 simulates a database created by an older tasker that
+// only had migration 0001, with data in it.
+func TestUpgradeFromV1(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "old.db")
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1, err := migrationFS.ReadFile("migrations/0001_init.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)`,
+		string(v1),
+		`INSERT INTO schema_migrations VALUES (1, 0)`,
+		`INSERT INTO tasks (id, title, created_at, updated_at) VALUES ('11111111-0000-4000-8000-000000000000', 'old task', 0, 0)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = db.Close()
+
+	s := open(t, path)
+	defer s.Close()
+	if v, _ := s.SchemaVersion(ctx); v != 2 {
+		t.Errorf("schema version = %d, want 2", v)
+	}
+	task, err := s.GetTask(ctx, "11111111")
+	if err != nil || task.Title != "old task" || task.Estimate != 0 {
+		t.Fatalf("old data after upgrade: %+v, %v", task, err)
 	}
 }

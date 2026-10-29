@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -50,14 +51,27 @@ func (m Model) narrow() bool { return m.width < narrowWidth }
 // View implements tea.Model.
 func (m Model) View() tea.View {
 	th := m.ctx.Styles.Theme
-	v := tea.NewView(fit(m.render(), m.width, m.height))
+	v := tea.NewView(fit(m.safeRender(), m.width, m.height))
 	v.AltScreen = true
 	v.WindowTitle = "tasker · " + m.scope.Title
 	// Paint the whole terminal with the theme so every cell, including
 	// padding, matches; tea restores the original colors on exit.
 	v.BackgroundColor = th.Base
 	v.ForegroundColor = th.Text
+	v.ProgressBar = m.pomo.TerminalProgress()
 	return v
+}
+
+// safeRender shows an error screen instead of crashing if rendering panics.
+func (m Model) safeRender() (out string) {
+	defer func() {
+		if r := recover(); r != nil {
+			out = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
+				m.ctx.Styles.Danger.Render(fmt.Sprintf("Rendering failed: %v", r))+"\n"+
+					m.ctx.Styles.Muted.Render("Press q to quit. Your data is safe."))
+		}
+	}()
+	return m.render()
 }
 
 func (m Model) render() string {
@@ -65,6 +79,9 @@ func (m Model) render() string {
 		return "" // waiting for the first WindowSizeMsg
 	}
 	st := m.ctx.Styles
+	// m is a copy here, so injecting per-frame timer state is side-effect free.
+	m.list.SetActive(m.pomo.RowLabel())
+	m.status.SetTimer(m.pomo.StatusSegment())
 	if m.width < minWidth || m.height < minHeight {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
 			st.Warning.Render("Terminal too small")+"\n"+

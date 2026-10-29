@@ -23,13 +23,14 @@ type taskPatch struct {
 	Project     *string // name or ID; "" moves to the Inbox
 	Parent      *string // ID prefix; "" makes it top-level
 	Tags        *[]string
+	Estimate    *int
 	AddTags     []string
 	RemoveTags  []string
 }
 
 func (p taskPatch) empty() bool {
 	return p.Title == nil && p.Description == nil && p.Status == nil && p.Priority == nil &&
-		p.Due == nil && p.Project == nil && p.Parent == nil && p.Tags == nil &&
+		p.Due == nil && p.Project == nil && p.Parent == nil && p.Tags == nil && p.Estimate == nil &&
 		len(p.AddTags) == 0 && len(p.RemoveTags) == 0
 }
 
@@ -40,6 +41,7 @@ func patchFlags(cmd *cobra.Command, withTitle bool) func() taskPatch {
 	var (
 		title, desc, status, prio, due, project, parent string
 		tags, addTags, rmTags                           []string
+		estimate                                        int
 	)
 	if withTitle {
 		f.StringVar(&title, "title", "", "new title")
@@ -51,6 +53,7 @@ func patchFlags(cmd *cobra.Command, withTitle bool) func() taskPatch {
 	f.StringVarP(&project, "project", "P", "", `project name (created if missing); "" moves to Inbox`)
 	f.StringVar(&parent, "parent", "", "make this a subtask of the given task ID")
 	f.StringSliceVarP(&tags, "tag", "t", nil, "tag (repeatable or comma-separated)")
+	f.IntVarP(&estimate, "estimate", "E", 0, "estimated pomodoros (0 clears)")
 	if withTitle { // edit-only flags
 		f.StringSliceVar(&addTags, "add-tag", nil, "add tags, keeping existing ones")
 		f.StringSliceVar(&rmTags, "rm-tag", nil, "remove tags")
@@ -73,6 +76,9 @@ func patchFlags(cmd *cobra.Command, withTitle bool) func() taskPatch {
 		p.Parent = set("parent", &parent)
 		if f.Changed("tag") {
 			p.Tags = &tags
+		}
+		if f.Changed("estimate") {
+			p.Estimate = &estimate
 		}
 		p.AddTags, p.RemoveTags = addTags, rmTags
 		return p
@@ -102,6 +108,9 @@ func (a *app) applyPatch(ctx context.Context, s store.Store, t *domain.Task, p t
 			return nil, err
 		}
 		t.Priority = pr
+	}
+	if p.Estimate != nil {
+		t.Estimate = *p.Estimate
 	}
 	if p.Due != nil {
 		due, hasTime, err := domain.ParseDue(*p.Due, now)

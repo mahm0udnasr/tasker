@@ -127,6 +127,8 @@ func (m *Model) render(w int) string {
 	b.WriteString("\n\n")
 
 	field := func(icon, label, value string) {
+		// Icons differ in width (the tomato emoji takes two cells): pad to 2.
+		icon += strings.Repeat(" ", max(2-lipgloss.Width(icon), 0))
 		b.WriteString(st.Muted.Render(fmt.Sprintf("%s %-9s", icon, label)))
 		b.WriteString(value)
 		b.WriteString("\n")
@@ -164,10 +166,10 @@ func (m *Model) render(w int) string {
 		rel := st.Muted.Render(domain.Relative(*t.Due, t.DueHasTime, now))
 		due = s.Render(t.Due.Format(layout))
 		// Keep the relative part whole: wrap it under the date if needed.
-		if 11+lipgloss.Width(due)+2+lipgloss.Width(rel) <= w {
+		if 12+lipgloss.Width(due)+2+lipgloss.Width(rel) <= w {
 			due += "  " + rel
 		} else {
-			due += "\n" + strings.Repeat(" ", 11) + rel
+			due += "\n" + strings.Repeat(" ", 12) + rel
 		}
 	}
 	field(ic.Due, "due", due)
@@ -181,6 +183,18 @@ func (m *Model) render(w int) string {
 		proj = color.Render(strings.TrimSpace(m.project.Icon + " " + m.project.Name))
 	}
 	field(ic.Project, "project", proj)
+
+	if t.Estimate > 0 || t.PomodorosDone > 0 || t.FocusTime > 0 {
+		focus := st.Text.Render(fmt.Sprintf("%d", t.PomodorosDone))
+		if t.Estimate > 0 {
+			focus += st.Muted.Render(fmt.Sprintf(" of %d", t.Estimate))
+		}
+		focus += st.Muted.Render(" pomodoros")
+		if t.FocusTime > 0 {
+			focus += st.Muted.Render(" · ") + st.Text.Render(domain.FormatFocus(t.FocusTime))
+		}
+		field(ic.Tomato, "focus", focus)
+	}
 
 	if len(t.Tags) > 0 {
 		chips := make([]string, len(t.Tags))

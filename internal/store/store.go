@@ -13,10 +13,11 @@ import (
 
 // Errors shared by all backends. Callers match them with errors.Is.
 var (
-	ErrNotFound      = errors.New("not found")
-	ErrAmbiguousID   = errors.New("id prefix matches more than one item")
-	ErrDuplicateName = errors.New("name already exists")
-	ErrInvalidParent = errors.New("invalid parent task")
+	ErrNotFound       = errors.New("not found")
+	ErrAmbiguousID    = errors.New("id prefix matches more than one item")
+	ErrDuplicateName  = errors.New("name already exists")
+	ErrInvalidParent  = errors.New("invalid parent task")
+	ErrSessionRunning = errors.New("a focus session is already running")
 )
 
 // MinIDPrefix is the shortest ID prefix accepted by lookups.
@@ -51,6 +52,18 @@ type Store interface {
 	// RestoreProjects upserts full project snapshots (undo/import).
 	RestoreProjects(ctx context.Context, ps []domain.Project) error
 
+	// CreatePomodoro starts a focus session. At most one session may be
+	// running; a running one must be finished first (ErrSessionRunning).
+	CreatePomodoro(ctx context.Context, p *domain.Pomodoro) error
+	// UpdatePomodoro saves pause/resume/finish state.
+	UpdatePomodoro(ctx context.Context, p *domain.Pomodoro) error
+	// ActivePomodoro returns the running (or paused) session, or ErrNotFound.
+	ActivePomodoro(ctx context.Context) (domain.Pomodoro, error)
+	// ListPomodoros returns sessions started in [from, to), oldest first.
+	ListPomodoros(ctx context.Context, from, to time.Time) ([]domain.Pomodoro, error)
+	// RestorePomodoros upserts sessions (import).
+	RestorePomodoros(ctx context.Context, ps []domain.Pomodoro) error
+
 	// ListTags returns tags in use by open tasks, with counts.
 	ListTags(ctx context.Context) ([]domain.Tag, error)
 
@@ -68,6 +81,7 @@ type Store interface {
 
 // ChangeSet is a batch of modified records.
 type ChangeSet struct {
-	Tasks    []domain.Task    `json:"tasks"`
-	Projects []domain.Project `json:"projects"`
+	Tasks     []domain.Task     `json:"tasks"`
+	Projects  []domain.Project  `json:"projects"`
+	Pomodoros []domain.Pomodoro `json:"-"`
 }

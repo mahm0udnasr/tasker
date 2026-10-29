@@ -32,6 +32,8 @@ type Model struct {
 	focused  bool
 	title    string
 	badges   []string // sort/filter indicators appended to the title
+	activeID string   // task with a running pomodoro
+	activeLb string   // its live timer label
 	empty    string   // message when there are no rows
 	loaded   bool
 }
@@ -64,6 +66,9 @@ func (m *Model) SetRows(rows []Row) {
 
 // SetTitle sets the panel title and the empty-state message.
 func (m *Model) SetTitle(title, empty string) { m.title, m.empty = title, empty }
+
+// SetActive marks the task with a running focus timer and its label.
+func (m *Model) SetActive(id, label string) { m.activeID, m.activeLb = id, label }
 
 // SetBadges sets short indicators shown after the title and count.
 func (m *Model) SetBadges(b []string) { m.badges = b }
@@ -313,6 +318,16 @@ func (m Model) renderRow(r Row, selected bool, w int) string {
 	if t.Description != "" {
 		segs = append(segs, segment{paint(st.Muted).Render(ic.Note), 2})
 	}
+	if p := t.PomodoroProgress(); p != "" {
+		s := paint(st.Muted)
+		if t.Estimate > 0 && t.PomodorosDone >= t.Estimate {
+			s = paint(st.Success)
+		}
+		segs = append(segs, segment{s.Render(ic.Tomato + p), 3})
+	}
+	if t.ID == m.activeID && m.activeLb != "" {
+		segs = append([]segment{{paint(lipgloss.NewStyle()).Render(m.activeLb), 5}}, segs...)
+	}
 	for i, tag := range t.Tags {
 		if i == 3 {
 			segs = append(segs, segment{paint(st.Muted).Render(fmt.Sprintf("+%d", len(t.Tags)-3)), 0})
@@ -348,7 +363,7 @@ func (m Model) renderRow(r Row, selected bool, w int) string {
 			}
 		}
 		rightStr = strings.Join(parts, plain.Render("  "))
-		if w-lipgloss.Width(left)-lipgloss.Width(rightStr)-2 >= minTitle || rank > 4 {
+		if w-lipgloss.Width(left)-lipgloss.Width(rightStr)-2 >= minTitle || rank > 5 {
 			break
 		}
 	}

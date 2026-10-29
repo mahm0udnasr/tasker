@@ -454,3 +454,109 @@ func TestRelative(t *testing.T) {
 		}
 	}
 }
+
+func TestCountdown(t *testing.T) {
+	start := now
+	c := NewCountdown(25*time.Minute, start)
+	if r := c.Remaining(start.Add(10 * time.Minute)); r != 15*time.Minute {
+		t.Errorf("remaining = %v", r)
+	}
+	// Pause for 5 minutes; the clock must not run meanwhile.
+	c.Pause(start.Add(10 * time.Minute))
+	if r := c.Remaining(start.Add(14 * time.Minute)); r != 15*time.Minute {
+		t.Errorf("remaining while paused = %v", r)
+	}
+	c.Pause(start.Add(12 * time.Minute)) // double pause is a no-op
+	c.Resume(start.Add(15 * time.Minute))
+	if c.Paused != 5*time.Minute || c.IsPaused() {
+		t.Errorf("paused = %v, isPaused = %v", c.Paused, c.IsPaused())
+	}
+	if r := c.Remaining(start.Add(20 * time.Minute)); r != 10*time.Minute {
+		t.Errorf("remaining after resume = %v", r)
+	}
+	if !c.EndTime().Equal(start.Add(30 * time.Minute)) {
+		t.Errorf("end = %v", c.EndTime())
+	}
+	if c.Done(start.Add(29*time.Minute)) || !c.Done(start.Add(30*time.Minute)) {
+		t.Error("Done boundary wrong")
+	}
+	// Long after the end (e.g. laptop slept): clamped, never negative.
+	if r := c.Remaining(start.Add(5 * time.Hour)); r != 0 {
+		t.Errorf("remaining after end = %v", r)
+	}
+	if p := c.Progress(start.Add(5 * time.Hour)); p != 1 {
+		t.Errorf("progress = %v", p)
+	}
+}
+
+func TestPomodoroFinish(t *testing.T) {
+	tests := []struct {
+		name          string
+		finishAt      time.Duration
+		pauseAt       time.Duration // 0 = never paused
+		wantCompleted bool
+		wantEnd       time.Duration
+		wantFocused   time.Duration
+	}{
+		{"stopped early", 10 * time.Minute, 0, false, 10 * time.Minute, 10 * time.Minute},
+		{"ran out exactly", 25 * time.Minute, 0, true, 25 * time.Minute, 25 * time.Minute},
+		{"noticed hours later", 3 * time.Hour, 0, true, 25 * time.Minute, 25 * time.Minute},
+		{"stopped while paused", 20 * time.Minute, 8 * time.Minute, false, 20 * time.Minute, 8 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPomodoro("task", 25*time.Minute, now)
+			if tt.pauseAt > 0 {
+				p.Pause(now.Add(tt.pauseAt))
+			}
+			p.Finish(now.Add(tt.finishAt))
+			if p.Running() || p.Completed != tt.wantCompleted {
+				t.Fatalf("running=%v completed=%v", p.Running(), p.Completed)
+			}
+			if !p.EndedAt.Equal(now.Add(tt.wantEnd)) {
+				t.Errorf("ended at +%v, want +%v", p.EndedAt.Sub(now), tt.wantEnd)
+			}
+			if f := p.Focused(now.Add(10 * time.Hour)); f != tt.wantFocused {
+				t.Errorf("focused = %v, want %v", f, tt.wantFocused)
+			}
+		})
+	}
+}
+
+func TestPomodoroSettingsAndFormatting(t *testing.T) {
+	s := DefaultPomodoroSettings()
+	for n, wantLong := range map[int]bool{1: false, 3: false, 4: true, 8: true, 5: false} {
+		if long, d := s.BreakAfter(n); long != wantLong || (long && d != s.LongBreak) {
+			t.Errorf("BreakAfter(%d) = %v %v", n, long, d)
+		}
+	}
+	clock := map[time.Duration]string{
+		25 * time.Minute: "25:00", 59*time.Second + time.Millisecond: "01:00", 0: "00:00",
+		90 * time.Minute: "1:30:00", -time.Second: "00:00",
+	}
+	for d, want := range clock {
+		if got := FormatClock(d); got != want {
+			t.Errorf("FormatClock(%v) = %q, want %q", d, got, want)
+		}
+	}
+	if FormatFocus(45*time.Minute) != "45m" || FormatFocus(125*time.Minute) != "2h 05m" ||
+		FormatFocus(3*time.Second) != "<1m" || FormatFocus(0) != "0m" {
+		t.Error("FormatFocus")
+	}
+	task := NewTask("x", now)
+	if task.PomodoroProgress() != "" {
+		t.Error("empty progress")
+	}
+	task.PomodorosDone = 3
+	if task.PomodoroProgress() != "3" {
+		t.Error("count only")
+	}
+	task.Estimate = 4
+	if task.PomodoroProgress() != "3/4" {
+		t.Error("with estimate")
+	}
+	task.Estimate = 100
+	if err := task.Validate(); !errors.Is(err, ErrInvalidEstimate) {
+		t.Errorf("estimate validation: %v", err)
+	}
+}
