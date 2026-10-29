@@ -36,6 +36,7 @@ type Picker struct {
 	maxRows   int
 	width     int
 	onPick    func(PickerItem) tea.Msg
+	onMove    func(PickerItem) tea.Msg
 	createFmt string // e.g. `Create project "%s"`; "" disables creating
 }
 
@@ -56,6 +57,8 @@ type PickerOptions struct {
 	// item then has Value == nil and Label == the typed text.
 	CreateFormat string
 	OnPick       func(PickerItem) tea.Msg
+	// OnMove, if set, is called whenever the highlighted item changes.
+	OnMove func(PickerItem) tea.Msg
 	// Width of the list area (default 48); MaxRows visible rows (default 10).
 	Width, MaxRows int
 }
@@ -64,7 +67,7 @@ type PickerOptions struct {
 func NewPicker(ctx *common.Context, o PickerOptions) (*Picker, tea.Cmd) {
 	p := &Picker{
 		ctx: ctx, title: o.Title, items: o.Items, onPick: o.OnPick,
-		createFmt: o.CreateFormat, maxRows: o.MaxRows, width: o.Width,
+		createFmt: o.CreateFormat, maxRows: o.MaxRows, width: o.Width, onMove: o.OnMove,
 	}
 	if p.maxRows == 0 {
 		p.maxRows = 10
@@ -123,10 +126,10 @@ func (p *Picker) Update(msg tea.Msg) (common.Overlay, tea.Cmd) {
 			return p, closeWith(p.onPick(m.item))
 		case "up", "ctrl+p", "ctrl+k", "shift+tab":
 			p.cursor = max(p.cursor-1, 0)
-			return p, nil
+			return p, p.moved()
 		case "down", "ctrl+n", "ctrl+j", "tab":
 			p.cursor = min(p.cursor+1, len(p.matches)-1)
-			return p, nil
+			return p, p.moved()
 		}
 	}
 	prev := p.input.Value()
@@ -135,8 +138,17 @@ func (p *Picker) Update(msg tea.Msg) (common.Overlay, tea.Cmd) {
 	if p.input.Value() != prev {
 		p.cursor = 0
 		p.filter()
+		return p, tea.Batch(cmd, p.moved())
 	}
 	return p, cmd
+}
+
+func (p *Picker) moved() tea.Cmd {
+	if p.onMove == nil || len(p.matches) == 0 || p.matches[p.cursor].create {
+		return nil
+	}
+	it := p.matches[p.cursor].item
+	return func() tea.Msg { return p.onMove(it) }
 }
 
 // View implements common.Overlay.

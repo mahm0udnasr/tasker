@@ -12,5 +12,5 @@ func (a *app) runTUI(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return tui.Run(s, a.cfg)
+	return tui.Run(s, a.cfg, a.cfgPath)
 }

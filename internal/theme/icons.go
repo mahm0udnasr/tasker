@@ -13,6 +13,7 @@ type Icons struct {
 	Branch, BranchLast                         string
 	Check, Cross, Warn, Info                   string
 	Tomato, Coffee, Pause, Play                string // pomodoro timer
+	Flame, Chart                               string // stats
 }
 
 // NerdIcons requires a Nerd Font.
@@ -25,6 +26,7 @@ var NerdIcons = Icons{
 	Branch: "├", BranchLast: "└",
 	Check: "", Cross: "", Warn: "", Info: "",
 	Tomato: "🍅", Coffee: "\uf0f4", Pause: "\uf04c", Play: "\uf04b",
+	Flame: "\uf06d", Chart: "\uf080",
 }
 
 // ASCIIIcons works in any terminal font.
@@ -37,6 +39,7 @@ var ASCIIIcons = Icons{
 	Branch: "|-", BranchLast: "`-",
 	Check: "ok", Cross: "x", Warn: "!", Info: "i",
 	Tomato: "(p)", Coffee: "~", Pause: "||", Play: ">",
+	Flame: "*", Chart: "#",
 }
 
 // IconSet returns the icons for a config value ("nerd" or "ascii").

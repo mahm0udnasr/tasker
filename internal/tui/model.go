@@ -18,6 +18,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/theme"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/detail"
+	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
 	"github.com/mahm0udnasr/tasker/internal/tui/pomodoro"
 	"github.com/mahm0udnasr/tasker/internal/tui/sidebar"
 	"github.com/mahm0udnasr/tasker/internal/tui/statusbar"
@@ -43,6 +44,7 @@ type Model struct {
 	ctx      *common.Context
 	store    store.Store
 	cfg      config.Config
+	cfgPath  string // "" disables saving (tests)
 	width    int
 	height   int
 	focus    pane
@@ -53,6 +55,7 @@ type Model struct {
 	status   statusbar.Model
 	overlays []common.Overlay
 	projects []domain.Project
+	tags     []domain.Tag
 	counts   domain.Counts
 	undo     undoStack
 	// pomo is shared by pointer so the status bar, list and focus overlay
@@ -63,14 +66,23 @@ type Model struct {
 	sorts      map[string]domain.SortKey // per-scope sort overrides
 	refine     domain.Refinement
 
+	// themeBefore is the theme to restore if the theme picker is cancelled.
+	themeBefore string
+
 	loadGen   int
 	detailGen int
 	// pendingSelect is a task ID to select when the next list load arrives.
 	pendingSelect string
 }
 
-// New builds the root model.
+// New builds the root model. cfgPath is where preferences (theme, welcome
+// seen) are saved; pass "" to never write the config.
 func New(s store.Store, cfg config.Config, now func() time.Time) Model {
+	return NewWithConfigPath(s, cfg, "", now)
+}
+
+// NewWithConfigPath is New with a config file to save preferences to.
+func NewWithConfigPath(s store.Store, cfg config.Config, cfgPath string, now func() time.Time) Model {
 	ctx := &common.Context{
 		Styles: theme.NewStyles(theme.Get(cfg.Theme)),
 		Icons:  theme.IconSet(cfg.Icons),
@@ -85,6 +97,7 @@ func New(s store.Store, cfg config.Config, now func() time.Time) Model {
 		ctx:        ctx,
 		store:      s,
 		cfg:        cfg,
+		cfgPath:    cfgPath,
 		focus:      paneList,
 		sidebar:    sidebar.New(ctx, start),
 		list:       tasklist.New(ctx),
@@ -99,6 +112,10 @@ func New(s store.Store, cfg config.Config, now func() time.Time) Model {
 	m.setScope(m.sidebar.Selected())
 	m.applyFocus()
 	m.loadGen = 1 // Init has a value receiver, so the first generation is set here
+	if !cfg.Seen && cfgPath != "" {
+		m.overlays = append(m.overlays, overlay.NewWelcome(ctx))
+		m.applyFocus()
+	}
 	return m
 }
 
@@ -112,8 +129,8 @@ func validView(v domain.SmartView) bool {
 }
 
 // Run starts the program and blocks until the user quits.
-func Run(s store.Store, cfg config.Config) error {
-	p := tea.NewProgram(New(s, cfg, time.Now))
+func Run(s store.Store, cfg config.Config, cfgPath string) error {
+	p := tea.NewProgram(NewWithConfigPath(s, cfg, cfgPath, time.Now))
 	_, err := p.Run()
 	return err
 }

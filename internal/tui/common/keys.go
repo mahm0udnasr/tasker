@@ -43,6 +43,8 @@ const (
 	ActPomoStop    = "pomodoro_stop"
 	ActPomoSkip    = "pomodoro_skip"
 	ActFocusMode   = "focus_mode"
+	ActStats       = "stats"
+	ActTheme       = "theme"
 )
 
 type actionDef struct {
@@ -88,6 +90,8 @@ var defaults = []actionDef{
 	{ActPomoStop, []string{"X"}, "", "stop pomodoro"},
 	{ActPomoSkip, []string{">"}, "", "skip to next phase"},
 	{ActFocusMode, []string{"z"}, "", "focus mode"},
+	{ActStats, []string{"S"}, "", "stats"},
+	{ActTheme, []string{"T"}, "", "change theme"},
 	{ActRefresh, []string{"ctrl+r"}, "", "reload"},
 	{ActHelp, []string{"?"}, "", "toggle help"},
 	{ActQuit, []string{"q", "ctrl+c"}, "q", "quit"},

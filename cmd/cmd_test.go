@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -325,5 +326,41 @@ func TestExportImportKeepsFocusHistory(t *testing.T) {
 	got := dst.listJSON()[0]
 	if got.PomodorosDone != 1 || got.FocusSeconds != 30*60 || got.Estimate != 3 {
 		t.Errorf("after import: done=%d focus=%ds estimate=%d", got.PomodorosDone, got.FocusSeconds, got.Estimate)
+	}
+}
+
+func TestThemesAndStatsCommands(t *testing.T) {
+	c := newCLI(t)
+	out := c.mustRun("themes")
+	for _, name := range []string{"catppuccin-mocha", "catppuccin-latte", "tokyo-night", "gruvbox", "nord", "light"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("themes output missing %q:\n%s", name, out)
+		}
+	}
+	cfgPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "tasker", "config.toml")
+	c.mustRun("themes", "set", "gruvbox")
+	data, err := os.ReadFile(cfgPath)
+	if err != nil || !strings.Contains(string(data), `theme = "gruvbox"`) || !strings.Contains(string(data), "[pomodoro]") {
+		t.Errorf("config after themes set (%v):\n%s", err, data)
+	}
+	if _, err := c.run("themes", "set", "solarized"); err == nil {
+		t.Error("unknown theme should fail")
+	}
+
+	c.mustRun("add", "one")
+	c.mustRun("done", c.listJSON()[0].ShortID)
+	out = c.mustRun("stats")
+	if !strings.Contains(out, "This week") || !strings.Contains(out, "streak 1") {
+		t.Errorf("stats:\n%s", out)
+	}
+	var js struct {
+		Streak int `json:"streak"`
+		Days   []struct {
+			Completed int `json:"completed"`
+		} `json:"days"`
+	}
+	if err := json.Unmarshal([]byte(c.mustRun("stats", "--json")), &js); err != nil || js.Streak != 1 ||
+		len(js.Days) != 7 || js.Days[6].Completed != 1 {
+		t.Errorf("stats json = %+v, %v", js, err)
 	}
 }

@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Build locally with: make snapshot
+version: 2
+
+project_name: tasker
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: tasker
+    main: .
+    binary: tasker
+    env:
+      - CGO_ENABLED=0 # pure-Go SQLite: fully static binaries
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/mahm0udnasr/tasker/cmd.Version={{ .Version }}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+nfpms:
+  - id: packages
+    package_name: tasker
+    vendor: Mahmoud Nasr
+    maintainer: Mahmoud Nasr <contact.mahmoudnasr@gmail.com>
+    homepage: https://github.com/mahm0udnasr/tasker
+    description: |-
+      A fast, keyboard-driven task manager for the terminal.
+      Smart views, projects, tags, subtasks, natural-language due dates,
+      a Pomodoro focus timer, themes and a scriptable CLI.
+    license: MIT
+    section: utils
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    recommends:
+      - libnotify-bin # notify-send, for pomodoro desktop notifications
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/tasker/README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

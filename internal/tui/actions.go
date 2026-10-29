@@ -3,12 +3,16 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"image/color"
 	"sort"
 	"strings"
+
+	"charm.land/lipgloss/v2"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/mahm0udnasr/tasker/internal/domain"
+	"github.com/mahm0udnasr/tasker/internal/theme"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/form"
 	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
@@ -66,6 +70,8 @@ func init() {
 		{common.ActFocusMode, "Focus mode", false, func(m *Model, _ domain.Task) tea.Cmd {
 			return m.pushOverlay(pomodoro.NewFocusOverlay(m.pomo), nil)
 		}},
+		{common.ActStats, "Stats", false, func(m *Model, _ domain.Task) tea.Cmd { return loadStats(m.store, m.ctx.Now()) }},
+		{common.ActTheme, "Change theme", false, (*Model).openThemePicker},
 		{common.ActPalette, "Command palette", false, (*Model).openPalette},
 		{common.ActQuit, "Quit", false, func(*Model, domain.Task) tea.Cmd { return tea.Quit }},
 	}
@@ -502,6 +508,55 @@ func (m *Model) confirmDeleteProject(domain.Task) tea.Cmd {
 			p.Name, plural(n, "open task"))
 	}
 	return m.pushOverlay(overlay.NewConfirm(m.ctx, "Delete project?", body, deleteProjectMsg{project: p}), nil)
+}
+
+// --- themes ------------------------------------------------------------------
+
+type (
+	themePreviewMsg struct{ name string }
+	themePickedMsg  struct{ name string }
+)
+
+// openThemePicker lists themes and previews each one live as the cursor
+// moves; esc restores the previous theme.
+func (m *Model) openThemePicker(domain.Task) tea.Cmd {
+	current := m.ctx.Styles.Theme.Name
+	m.themeBefore = current
+	var items []overlay.PickerItem
+	for _, name := range theme.Names() {
+		th := theme.Get(name)
+		kind := "dark"
+		if !th.Dark {
+			kind = "light"
+		}
+		swatch := ""
+		for _, c := range []color.Color{th.Accent, th.Secondary, th.Success, th.Warning, th.Danger} {
+			swatch += lipgloss.NewStyle().Foreground(c).Render("●")
+		}
+		items = append(items, overlay.PickerItem{Icon: swatch, Label: name, Hint: kind, Value: name})
+	}
+	p, init := overlay.NewPicker(m.ctx, overlay.PickerOptions{
+		Title:       "Theme",
+		Placeholder: "move to preview, enter to keep",
+		Items:       items,
+		Current:     current,
+		OnMove:      func(it overlay.PickerItem) tea.Msg { return themePreviewMsg{name: it.Label} },
+		OnPick:      func(it overlay.PickerItem) tea.Msg { return themePickedMsg{name: it.Label} },
+	})
+	return m.pushOverlay(p, init)
+}
+
+// applyTheme swaps the shared styles; every component reads them on the
+// next render. Cached renders (sidebar items, detail markdown) are rebuilt.
+func (m *Model) applyTheme(name string) {
+	if !theme.Exists(name) || name == m.ctx.Styles.Theme.Name {
+		return
+	}
+	m.ctx.Styles = theme.NewStyles(theme.Get(name))
+	m.cfg.Theme = name
+	m.status.ApplyTheme()
+	m.sidebar.SetData(m.projects, m.tags, m.counts)
+	m.detail.Refresh()
 }
 
 func sortedKeys(m map[string]int) []string {

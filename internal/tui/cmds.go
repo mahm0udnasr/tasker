@@ -4,16 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/mahm0udnasr/tasker/internal/config"
 	"github.com/mahm0udnasr/tasker/internal/domain"
 	"github.com/mahm0udnasr/tasker/internal/service"
 	"github.com/mahm0udnasr/tasker/internal/store"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/form"
+	"github.com/mahm0udnasr/tasker/internal/tui/stats"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
 )
 
@@ -322,6 +325,68 @@ func completeTask(s store.Store, id string, now time.Time) tea.Cmd {
 		}
 		text := "Completed “" + t.Title + "”"
 		return mutatedMsg{text: text, selectID: t.ID, undo: &undoEntry{desc: text, tasks: []domain.Task{before}}}, nil
+	})
+}
+
+type statsLoadedMsg struct {
+	data stats.Data
+	err  error
+}
+
+func loadStats(s store.Store, now time.Time) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := dbCtx()
+		defer cancel()
+		ts, err := s.Stats(ctx, now, stats.Days)
+		if err != nil {
+			return statsLoadedMsg{err: err}
+		}
+		from := domain.StartOfDay(now).AddDate(0, 0, -stats.Days+1)
+		sessions, err := s.ListPomodoros(ctx, from, now.Add(time.Hour))
+		if err != nil {
+			return statsLoadedMsg{err: err}
+		}
+		return statsLoadedMsg{data: stats.Data{Tasks: ts, Focus: domain.ComputeFocus(sessions, stats.Days, now)}}
+	}
+}
+
+// saveSetting writes one top-level config key, preserving the rest of the
+// file. Failing to save a preference is reported but never fatal.
+func saveSetting(path, key string, value any) tea.Cmd {
+	if path == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		if err := config.SetValue(path, key, value); err != nil {
+			return common.StatusMsg{Text: "couldn't save config: " + err.Error(), Error: true}
+		}
+		return nil
+	}
+}
+
+// markWelcomeSeen writes the commented default config on first run (it
+// already records the welcome as seen), or flips the flag in an existing one.
+func markWelcomeSeen(path string) tea.Cmd {
+	if path == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			if err := config.WriteTemplate(path); err != nil {
+				return common.StatusMsg{Text: "couldn't write config: " + err.Error(), Error: true}
+			}
+			return nil
+		}
+		return saveSetting(path, "seen_welcome", true)()
+	}
+}
+
+func seedSamples(s store.Store, now time.Time) tea.Cmd {
+	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		if err := service.SeedSamples(ctx, s, now); err != nil {
+			return mutatedMsg{}, err
+		}
+		return mutatedMsg{text: "Added example tasks to “Getting started” — have a look around"}, nil
 	})
 }
 

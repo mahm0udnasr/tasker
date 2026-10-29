@@ -71,3 +71,47 @@ func ComputeStats(completions []time.Time, total, done, days int, now time.Time)
 	}
 	return s
 }
+
+// FocusDay is the focus time and completed pomodoros of one calendar day.
+type FocusDay struct {
+	Day       time.Time     `json:"day"`
+	Focus     time.Duration `json:"-"`
+	Pomodoros int           `json:"pomodoros"`
+}
+
+// FocusStats summarizes pomodoro sessions over a window of days.
+type FocusStats struct {
+	PerDay    []FocusDay    `json:"per_day"` // oldest first, ending today
+	Total     time.Duration `json:"-"`
+	Pomodoros int           `json:"pomodoros"`
+}
+
+// ComputeFocus buckets finished sessions by the day they started, over the
+// last `days` days. Running sessions are ignored.
+func ComputeFocus(sessions []Pomodoro, days int, now time.Time) FocusStats {
+	today := StartOfDay(now)
+	idx := make(map[time.Time]int, days)
+	fs := FocusStats{PerDay: make([]FocusDay, days)}
+	for i := range days {
+		d := today.AddDate(0, 0, i-days+1)
+		fs.PerDay[i].Day = d
+		idx[d] = i
+	}
+	for _, p := range sessions {
+		if p.Running() || p.DeletedAt != nil {
+			continue
+		}
+		i, ok := idx[StartOfDay(p.Start.In(now.Location()))]
+		if !ok {
+			continue
+		}
+		f := p.Focused(now)
+		fs.PerDay[i].Focus += f
+		fs.Total += f
+		if p.Completed {
+			fs.PerDay[i].Pomodoros++
+			fs.Pomodoros++
+		}
+	}
+	return fs
+}

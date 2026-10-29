@@ -61,6 +61,9 @@ func (m *Model) SetTask(t *domain.Task, subtasks []domain.Task, project domain.P
 	m.refresh()
 }
 
+// Refresh re-renders the content (e.g. after a theme change).
+func (m *Model) Refresh() { m.refresh() }
+
 // TaskID returns the ID of the shown task, or "".
 func (m Model) TaskID() string {
 	if m.task == nil {
@@ -235,12 +238,13 @@ func (m *Model) render(w int) string {
 		b.WriteString(m.markdown(t.Description, w))
 	}
 
-	b.WriteString("\n\n" + st.Muted.Render("created "+t.CreatedAt.Format("2 Jan 2006 15:04")))
+	meta := "created " + t.CreatedAt.Format("2 Jan 2006 15:04")
 	if t.CompletedAt != nil {
-		b.WriteString(st.Muted.Render(" · completed " + t.CompletedAt.Format("2 Jan 15:04")))
+		meta += " · completed " + t.CompletedAt.Format("2 Jan 15:04")
 	} else if !t.UpdatedAt.Equal(t.CreatedAt) {
-		b.WriteString(st.Muted.Render(" · edited " + t.UpdatedAt.Format("2 Jan 15:04")))
+		meta += " · edited " + t.UpdatedAt.Format("2 Jan 15:04")
 	}
+	b.WriteString("\n\n" + st.Muted.Width(w).Render(meta))
 	b.WriteString("\n" + st.Muted.Render("id "+domain.ShortID(t.ID)))
 	return b.String()
 }

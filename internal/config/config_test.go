@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +87,64 @@ func TestPomodoroSettings(t *testing.T) {
 	}
 	if !s.AutoBreaks || !cfg.Pomodoro.Notify { // untouched keys keep their defaults
 		t.Errorf("defaults lost: %+v", cfg.Pomodoro)
+	}
+}
+
+func TestTemplateParsesToDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := WriteTemplate(path); err != nil {
+		t.Fatal(err)
+	}
+	cfg, exists, err := Load(path)
+	if err != nil || !exists {
+		t.Fatalf("load template: %v", err)
+	}
+	want := Default()
+	want.Seen = true
+	if cfg.Theme != want.Theme || cfg.Icons != want.Icons || cfg.Pomodoro != want.Pomodoro || !cfg.Seen {
+		t.Errorf("template = %+v\nwant      %+v", cfg, want)
+	}
+}
+
+func TestSetValuePreservesComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	orig := "# my notes\ntheme = \"nord\"  # I like nord\nicons = \"ascii\"\n\n[pomodoro]\nfocus_minutes = 50\n"
+	if err := os.WriteFile(path, []byte(orig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetValue(path, "theme", "gruvbox"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetValue(path, "seen_welcome", true); err != nil { // absent: inserted before [pomodoro]
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	got := string(data)
+	for _, want := range []string{"# my notes", "theme = \"gruvbox\"", "icons = \"ascii\"", "seen_welcome = true\n\n[pomodoro]", "focus_minutes = 50"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	cfg, _, err := Load(path)
+	if err != nil || cfg.Theme != "gruvbox" || !cfg.Seen || cfg.Pomodoro.FocusMinutes != 50 {
+		t.Errorf("reloaded = %+v, %v", cfg, err)
+	}
+	// A [section] key with the same name must not be touched.
+	_ = os.WriteFile(path, []byte("[other]\ntheme = \"x\"\n"), 0o600)
+	_ = SetValue(path, "theme", "nord")
+	data, _ = os.ReadFile(path)
+	if !strings.HasPrefix(string(data), "theme = \"nord\"\n\n[other]\ntheme = \"x\"") {
+		t.Errorf("section key touched:\n%s", data)
+	}
+}
+
+func TestSetValueCreatesFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "new", "config.toml")
+	if err := SetValue(path, "theme", "nord"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, exists, err := Load(path)
+	if err != nil || !exists || cfg.Theme != "nord" {
+		t.Errorf("created config = %+v exists=%v err=%v", cfg, exists, err)
 	}
 }

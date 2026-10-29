@@ -6,7 +6,7 @@ GOBIN   ?= $(shell go env GOPATH)/bin
 
 export CGO_ENABLED := 0
 
-.PHONY: all build run test test-race cover lint fmt tidy install uninstall clean help
+.PHONY: all build run test test-race cover lint fmt tidy install uninstall snapshot demo screenshots clean help
 
 all: fmt lint test build ## Format, lint, test and build
 
@@ -40,6 +40,19 @@ install: ## Install to $GOBIN (default ~/go/bin)
 
 uninstall: ## Remove the installed binary
 	rm -f $(GOBIN)/$(BINARY)
+
+snapshot: ## Build release archives and .deb/.rpm locally into dist/ (needs goreleaser)
+	goreleaser release --snapshot --clean
+
+demo: build ## Record docs/demo.gif (needs vhs)
+	PATH="$(CURDIR)/bin:$$PATH" vhs docs/demo.tape
+
+screenshots: ## Regenerate docs/screenshots from the TUI (needs python3 + Pillow)
+	@mkdir -p .shots
+	TASKER_SNAPSHOT_DIR=$(CURDIR)/.shots go test -count=1 -run TestScreenshots ./internal/tui/
+	for n in main focus stats; do python3 docs/screenshots/render.py .shots/shot-$$n.ansi docs/screenshots/$$n.png 1e1e2e cdd6f4; done
+	python3 docs/screenshots/render.py .shots/shot-themes.ansi docs/screenshots/themes.png 2e3440 eceff4
+	rm -rf .shots
 
 clean: ## Remove build artifacts
 	rm -rf bin dist coverage.out coverage.html

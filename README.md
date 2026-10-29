@@ -1,128 +1,166 @@
 # tasker
 
-A fast, keyboard-driven task manager for the terminal, built with Go and
-[Charm](https://charm.sh). Single static binary, no CGO, data in SQLite.
+A fast, keyboard-driven task manager for the terminal: smart views, projects,
+tags, subtasks, natural-language due dates, a Pomodoro focus timer, five themes
+and a scriptable CLI. One static binary, no CGO, your data in a local SQLite file.
 
-> 🚧 Under active development: themes, the stats view and a first-run welcome
-> are coming next.
+Built with Go and [Charm](https://charm.sh) (Bubble Tea, Bubbles, Lip Gloss,
+Huh, Glamour).
+
+![Main view](docs/screenshots/main.png)
+
+| Focus mode | Stats | Live theme preview |
+|---|---|---|
+| ![Focus mode](docs/screenshots/focus.png) | ![Stats](docs/screenshots/stats.png) | ![Themes](docs/screenshots/themes.png) |
+
+<!-- An animated demo can be recorded with `make demo` (needs vhs). -->
+
+## Features
+
+- **Smart views**: Inbox, Today (includes overdue), Upcoming, Overdue,
+  Completed, plus every project and tag, all with live counts.
+- **Fast capture**: `tomorrow 5pm`, `next fri`, `in 3 days` just work.
+- **Subtasks** with progress (`2/5`), **priorities**, **tags**, **markdown notes**.
+- **Detail pane**, fuzzy **search** (`/`), **filters**, **sorting**, manual
+  reordering, and a **command palette** (`Ctrl+P`) with every action.
+- **Undo** (`u`) for completes, edits, moves and deletes, up to 50 steps.
+- **Pomodoro timer** tied to tasks, with estimates, breaks, desktop
+  notifications and a full-screen focus mode.
+- **Stats**: streaks, completion rate, tasks and focus time per day.
+- **Themes**: Catppuccin Mocha & Latte (light), Tokyo Night, Gruvbox, Nord,
+  previewed live and saved to your config.
+- **Responsive**: three panes on wide terminals, one at a time on narrow ones.
+- **Scriptable CLI** with `--json` everywhere, plus JSON export/import.
+- Built for **sync later**: UUIDs, timestamps and soft deletes on every record.
 
 ## Install
 
-```sh
-# with Go 1.26+
-go install github.com/mahm0udnasr/tasker@latest
+**Go** (1.26+):
 
-# from source
+```sh
+go install github.com/mahm0udnasr/tasker@latest
+```
+
+**From source**:
+
+```sh
 git clone https://github.com/mahm0udnasr/tasker && cd tasker
 make install        # → $(go env GOPATH)/bin/tasker
 ```
 
-## TUI
+**Debian/Ubuntu package**: download the `.deb` from the
+[releases page](https://github.com/mahm0udnasr/tasker/releases), then:
 
-Run `tasker` with no arguments. Press `?` for every shortcut.
+```sh
+sudo apt install ./tasker_*_amd64.deb
+```
 
-| Key | Action | Key | Action |
-|-----|--------|-----|--------|
+For icons, use a [Nerd Font](https://www.nerdfonts.com) in your terminal, or
+set `icons = "ascii"`. Desktop notifications use `notify-send`
+(`sudo apt install libnotify-bin` if it's missing).
+
+## Getting started
+
+Run `tasker`. The first time, a welcome screen offers a few example tasks
+that show off each feature. Press `?` at any time for every shortcut.
+
+## Keybindings
+
+All keys are vim-style by default and can be rebound in the config.
+
+| Navigate | | Tasks | |
+|---|---|---|---|
 | `j` / `k` | move down / up | `a` | add task |
 | `g` / `G` | top / bottom | `A` | add subtask |
-| `h` / `l`, `Tab` | switch panes | `e` | edit task |
-| `Enter` | expand subtasks | `x` / `Space` | toggle done |
-| `v` | toggle detail pane | `i` | toggle in progress |
-| `/` | search all tasks | `d` | delete task |
-| `Ctrl+P` or `:` | command palette | `p` | cycle priority |
-| `f` / `F` | filter / clear filter | `t` | set due date |
-| `s` | cycle sort | `m` | move to project |
-| `u` | undo | `J` / `K` | reorder (manual sort) |
-| `ctrl+r` | reload | `D` | delete selected project |
-| `P` | start / pause pomodoro | `X` | stop pomodoro |
-| `>` | skip to next phase | `z` | focus mode |
-| `?` | help | `q` | quit |
+| `Ctrl+D` / `Ctrl+U` | page down / up | `e` | edit task |
+| `h` / `l` | focus left / right pane | `x` / `Space` | toggle done |
+| `Tab` / `Shift+Tab` | cycle panes | `i` | toggle in progress |
+| `Enter` | expand subtasks | `d` | delete task |
+| `v` | toggle detail pane | `p` | cycle priority |
+| | | `t` | set due date |
+| **Find & organize** | | `m` | move to project |
+| `/` | search all tasks | `J` / `K` | move task down / up (manual sort) |
+| `Ctrl+P` or `:` | command palette | `D` | delete selected project |
+| `f` / `F` | filter / clear filter | | |
+| `s` | cycle sort | **Pomodoro** | |
+| `u` | undo | `P` | start / pause |
+| | | `X` | stop |
+| **General** | | `>` | skip to next phase |
+| `S` | stats | `z` | focus mode |
+| `T` | change theme | | |
+| `Ctrl+R` | reload | | |
+| `?` | help | | |
+| `q` | quit | | |
 
-- **Detail pane** (`v`): the selected task with metadata, subtasks and its notes
-  rendered as markdown. On terminals narrower than 120 columns it opens as a
-  modal instead.
-- **Search** (`/`): fuzzy search over every task's title, tags and project;
-  `Enter` jumps to the task (expanding its parent if it's a subtask).
-- **Filter** (`f`): narrow the current list by priority, due date and status;
-  the active filter is shown in the list title. `F` clears it.
-- **Sort** (`s`): cycle manual → due → priority → created → title, remembered
-  per view. In manual order, `J`/`K` move tasks.
-- **Undo** (`u`): reverts the last change: completions, edits, moves, deletes
-  (including a deleted project and its tasks), reorders. Up to 50 steps.
-- **Command palette** (`Ctrl+P`): every action plus "Go to" any view, project
-  or tag.
+In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
+`Esc` cancels. Adding from a view pre-fills it: due "today" in Today, the
+project when a project is selected, the tag when a tag is.
 
 ## Pomodoro
 
 Select a task and press `P` to start a 25-minute focus session on it. The
-countdown appears in the status bar and on the task's row (and in the
-terminal's tab/taskbar progress indicator, where supported). Press `z` for
-a distraction-free focus mode with a big clock.
+countdown shows in the status bar, on the task's row, and in the terminal's
+tab/taskbar progress indicator where supported. Press `z` for focus mode.
 
-- When a session ends you get a desktop notification (`notify-send`) and a
-  terminal bell, and a 5-minute break starts; every 4th break is 15 minutes.
-- `P` pauses/resumes, `>` skips to the next phase, `X` stops. A stopped
-  session still counts toward the task's focus time; only full sessions
-  count as pomodoros.
-- Give a task an **estimate** (in the form, or `--estimate 4`) and its row
-  shows `🍅 2/4`. Without one it just counts: `🍅 2`. The detail pane shows
-  total focus time.
-- The timer survives restarts: quit while a session runs and it's still
-  running when you come back. If it ran out meanwhile, it's credited.
+- When a session ends you get a desktop notification and a bell, and a break
+  starts: 5 minutes, or 15 after every 4th session.
+- `P` pauses/resumes, `>` skips ahead, `X` stops. A stopped session still
+  counts toward the task's focus time; only full sessions count as pomodoros.
+- Give a task an **estimate** and its row shows `🍅 2/4`; without one, `🍅 2`.
+- The timer survives restarts. If a session ran out while tasker was closed,
+  you're credited for it.
 
-From the shell:
-
-```sh
-tasker focus 5d56              # full-screen timer; q leaves it running
-tasker focus 5d56 --minutes 50 # one-off length
-tasker focus --status          # 🍅 12:31 left on Write thesis (running)
-tasker focus --stop
-tasker add "Thesis chapter" --estimate 6
-```
-
-In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
-`Esc` cancels. Adding from a view pre-fills it (e.g. due "today" in Today,
-the project when a project is selected).
-
-Every key can be rebound in `config.toml`:
-
-```toml
-[keys]
-add = ["a", "n"]
-toggle_done = ["x", "space", "c"]
-```
-
-## CLI quick start
+## CLI
 
 ```sh
 tasker add "Finish ML assignment" --due "tomorrow 8pm" --priority high --project uni --tag ml
-tasker add "Read paper" --parent 5d56          # subtask (any unique ID prefix works)
+tasker add "Read paper" --parent 5d56        # subtask; any unique ID prefix works
+tasker add "Thesis chapter" --estimate 6     # planned pomodoros
+
 tasker list                    # open tasks
 tasker list --today            # due today + overdue
 tasker list --overdue --json   # machine-readable
 tasker list --project uni -s   # with subtasks
 tasker show 5d56
+
 tasker done 5d56 a0a7          # several at once
+tasker reopen 5d56
 tasker edit 5d56 --due "next monday" --add-tag exam
 tasker edit 5d56               # opens $EDITOR
 tasker rm 5d56
+
 tasker projects                # list projects
-tasker projects rm uni         # delete a project; its tasks move to Inbox
-tasker export -o backup.json && tasker import backup.json
+tasker projects rm uni         # delete a project; its tasks move to the Inbox
+
+tasker focus 5d56              # full-screen timer; q leaves it running
+tasker focus --status
+tasker focus --stop
+
+tasker stats [--json]
+tasker themes                  # list themes
+tasker themes set nord
+
+tasker export -o backup.json
+tasker import backup.json      # merges by ID, newest edit wins
 ```
 
-Due dates accept natural language (`today 5pm`, `tomorrow`, `friday`,
-`next week`, `in 3 days`, `eod`) or `2026-12-24` / `2026-12-24 17:00`.
+Due dates accept `today 5pm`, `tonight`, `tomorrow`, `friday`, `next week`,
+`weekend`, `next month`, `in 3 days`, `in 2 hours`, `eod`, `2026-12-24` and
+`2026-12-24 17:00`. Use `none` to clear one.
+
+Running `tasker` with no arguments opens the TUI.
 
 ## Configuration
 
-`~/.config/tasker/config.toml` (all keys optional):
+The config lives at `~/.config/tasker/config.toml` and is created, fully
+commented, on first run. Every key is optional.
 
 ```toml
-theme = "catppuccin-mocha"
-icons = "nerd"            # or "ascii" if you don't use a Nerd Font
-default_view = "today"    # inbox, today, upcoming, overdue, completed
-show_detail = true
+theme = "catppuccin-mocha"   # catppuccin-latte, tokyo-night, gruvbox, nord
+icons = "nerd"               # or "ascii" without a Nerd Font
+default_view = "today"       # inbox, today, upcoming, overdue, completed
+show_detail = true           # detail pane on wide terminals
+# database = "~/Dropbox/tasker.db"
 
 [pomodoro]
 focus_minutes = 25
@@ -131,25 +169,50 @@ long_break_minutes = 15
 long_break_every = 4
 auto_start_breaks = true
 auto_start_focus = false
-notify = true             # desktop notifications via notify-send
-bell = true               # terminal bell
+notify = true                # desktop notifications via notify-send
+bell = true                  # terminal bell
 
-[keys]                    # rebind any action; see `?` in the TUI for names
+[keys]                       # action = [keys]; names are shown in the help (?)
 add = ["a", "n"]
+toggle_done = ["x", "space"]
 ```
 
-## Files
+Choosing a theme in the app (`T`) or with `tasker themes set` updates only
+the `theme` line; your comments and other settings are preserved.
 
-| What     | Where                                                   |
-|----------|---------------------------------------------------------|
-| Config   | `$XDG_CONFIG_HOME/tasker/config.toml` (`~/.config/...`) |
-| Database | `$XDG_DATA_HOME/tasker/tasker.db` (`~/.local/share/...`), or `$TASKER_DB`, or `--db` |
+| What     | Where |
+|----------|-------|
+| Config   | `$XDG_CONFIG_HOME/tasker/config.toml` (default `~/.config/tasker/`) |
+| Database | `$XDG_DATA_HOME/tasker/tasker.db` (default `~/.local/share/tasker/`); override with `database`, `$TASKER_DB` or `--db` |
 
 ## Development
 
 ```sh
-make build   # ./bin/tasker
-make test    # unit + integration tests
-make lint    # golangci-lint
-make help    # all targets
+make build      # ./bin/tasker
+make run        # build and launch
+make test       # unit + integration tests (incl. headless TUI tests)
+make lint       # golangci-lint
+make snapshot   # local release build: archives + .deb/.rpm in dist/
+make demo       # record docs/demo.gif with vhs
+make screenshots  # regenerate docs/screenshots (needs python3 + Pillow)
+make help       # everything else
 ```
+
+Layout:
+
+```
+cmd/                 cobra commands (thin: parse flags, call the store, print)
+internal/domain/     types and business rules, no I/O
+internal/store/      Store interface, SQLite implementation, conformance suite
+internal/service/    use cases shared by the CLI and TUI
+internal/config/     TOML config at XDG paths
+internal/theme/      palettes, styles, icon sets
+internal/tui/        Bubble Tea root model and one package per component
+```
+
+The storage layer is an interface with a shared conformance test suite, so a
+remote (sync) backend can be added without touching the UI.
+
+## License
+
+MIT

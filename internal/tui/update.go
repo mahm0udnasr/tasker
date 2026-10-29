@@ -9,6 +9,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
 	"github.com/mahm0udnasr/tasker/internal/tui/pomodoro"
+	"github.com/mahm0udnasr/tasker/internal/tui/stats"
 	"github.com/mahm0udnasr/tasker/internal/tui/tasklist"
 )
 
@@ -68,7 +69,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			return m, common.ErrorCmd(msg.err)
 		}
-		m.projects, m.counts = msg.projects, msg.counts
+		m.projects, m.tags, m.counts = msg.projects, msg.tags, msg.counts
 		m.sidebar.SetData(msg.projects, msg.tags, msg.counts)
 		m.status.SetCounts(msg.counts)
 		// A deleted project or vanished tag can invalidate the scope.
@@ -134,6 +135,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.overlays) > 0 {
 			m.overlays = m.overlays[:len(m.overlays)-1]
 		}
+		// Closing the theme picker without choosing reverts the preview. (A
+		// pick arrives right after this close and re-applies its theme.)
+		if m.themeBefore != "" {
+			m.applyTheme(m.themeBefore)
+			m.themeBefore = ""
+		}
 		m.applyFocus()
 		return m, nil
 
@@ -150,6 +157,29 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case deleteProjectMsg:
 		return m, deleteProject(m.store, msg.project, m.ctx.Now())
+
+	case themePreviewMsg:
+		m.applyTheme(msg.name)
+		return m, nil
+
+	case themePickedMsg:
+		m.themeBefore = ""
+		m.applyTheme(msg.name)
+		return m, tea.Batch(saveSetting(m.cfgPath, "theme", msg.name), common.Status("Theme: "+msg.name))
+
+	case statsLoadedMsg:
+		if msg.err != nil {
+			return m, common.ErrorCmd(msg.err)
+		}
+		return m, m.pushOverlay(stats.New(m.ctx, msg.data), nil)
+
+	case overlay.WelcomeDoneMsg:
+		m.cfg.Seen = true
+		cmds := []tea.Cmd{markWelcomeSeen(m.cfgPath)}
+		if msg.Samples {
+			cmds = append(cmds, seedSamples(m.store, m.ctx.Now()))
+		}
+		return m, tea.Batch(cmds...)
 
 	case pomodoro.ChangedMsg:
 		return m, m.reload()

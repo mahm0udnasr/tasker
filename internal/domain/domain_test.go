@@ -560,3 +560,31 @@ func TestPomodoroSettingsAndFormatting(t *testing.T) {
 		t.Errorf("estimate validation: %v", err)
 	}
 }
+
+func TestComputeFocus(t *testing.T) {
+	mk := func(dayOffset int, minutes int, complete bool) Pomodoro {
+		start := time.Date(2026, 10, 29+dayOffset, 10, 0, 0, 0, time.Local)
+		p := NewPomodoro("t", 25*time.Minute, start)
+		p.Finish(start.Add(time.Duration(minutes) * time.Minute))
+		if complete != p.Completed {
+			panic("fixture")
+		}
+		return p
+	}
+	running := NewPomodoro("t", 25*time.Minute, now)
+	old := mk(-30, 25, true)
+	sessions := []Pomodoro{mk(0, 25, true), mk(0, 10, false), mk(-1, 25, true), mk(-6, 30, true), running, old}
+	fs := ComputeFocus(sessions, 7, now)
+	if len(fs.PerDay) != 7 || !fs.PerDay[6].Day.Equal(StartOfDay(now)) {
+		t.Fatalf("days = %+v", fs.PerDay)
+	}
+	if fs.PerDay[6].Focus != 35*time.Minute || fs.PerDay[6].Pomodoros != 1 {
+		t.Errorf("today = %+v", fs.PerDay[6])
+	}
+	if fs.PerDay[0].Focus != 25*time.Minute { // capped at the session length
+		t.Errorf("6 days ago = %+v", fs.PerDay[0])
+	}
+	if fs.Total != 85*time.Minute || fs.Pomodoros != 3 {
+		t.Errorf("total = %v, pomodoros = %d", fs.Total, fs.Pomodoros)
+	}
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/config"
 	"github.com/mahm0udnasr/tasker/internal/store"
 	"github.com/mahm0udnasr/tasker/internal/store/sqlite"
+	"github.com/mahm0udnasr/tasker/internal/theme"
 )
 
 // Version is set at build time via -ldflags.
@@ -95,6 +96,7 @@ func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
 				return err
 			}
 			a.cfg, a.cfgSeen = cfg, exists
+			styles = newCLIStyles(theme.Get(cfg.Theme))
 			return nil
 		},
 		PersistentPostRun: func(*cobra.Command, []string) { a.close() },
@@ -117,6 +119,8 @@ func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
 		newEditCmd(a),
 		newProjectsCmd(a),
 		newFocusCmd(a),
+		newThemesCmd(a),
+		newStatsCmd(a),
 		newExportCmd(a),
 		newImportCmd(a),
 	)

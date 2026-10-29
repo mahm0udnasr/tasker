@@ -11,34 +11,43 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mahm0udnasr/tasker/internal/domain"
+	"github.com/mahm0udnasr/tasker/internal/theme"
 )
 
-// CLI palette (Catppuccin Mocha). The writer downsamples it for the terminal
-// and strips it entirely when output is piped or NO_COLOR is set.
-var styles = struct {
+// cliStyles are derived from the configured theme. The writer downsamples
+// them for the terminal and strips them when output is piped or NO_COLOR
+// is set.
+type cliStyles struct {
 	dim, id, title, done, ok, err, warn, overdue, today, tag, project, header lipgloss.Style
 	prio                                                                      [5]lipgloss.Style
-}{
-	dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086")),
-	id:      lipgloss.NewStyle().Foreground(lipgloss.Color("#7f849c")),
-	title:   lipgloss.NewStyle().Foreground(lipgloss.Color("#cdd6f4")),
-	done:    lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086")).Strikethrough(true),
-	ok:      lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1")).Bold(true),
-	err:     lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8")).Bold(true),
-	warn:    lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af")),
-	overdue: lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8")).Bold(true),
-	today:   lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af")).Bold(true),
-	tag:     lipgloss.NewStyle().Foreground(lipgloss.Color("#94e2d5")),
-	project: lipgloss.NewStyle().Foreground(lipgloss.Color("#b4befe")),
-	header:  lipgloss.NewStyle().Foreground(lipgloss.Color("#cba6f7")).Bold(true),
-	prio: [5]lipgloss.Style{
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#45475a")),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af")),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#fab387")),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8")).Bold(true),
-	},
 }
+
+func newCLIStyles(t theme.Theme) cliStyles {
+	n := lipgloss.NewStyle
+	s := cliStyles{
+		dim:     n().Foreground(t.Muted),
+		id:      n().Foreground(t.Muted),
+		title:   n().Foreground(t.Text),
+		done:    n().Foreground(t.Muted).Strikethrough(true),
+		ok:      n().Foreground(t.Success).Bold(true),
+		err:     n().Foreground(t.Danger).Bold(true),
+		warn:    n().Foreground(t.Warning),
+		overdue: n().Foreground(t.Danger).Bold(true),
+		today:   n().Foreground(t.Warning).Bold(true),
+		tag:     n().Foreground(t.Tag),
+		project: n().Foreground(t.Secondary),
+		header:  n().Foreground(t.Accent).Bold(true),
+	}
+	for i, c := range t.Priority {
+		s.prio[i] = n().Foreground(c)
+	}
+	s.prio[4] = s.prio[4].Bold(true)
+	return s
+}
+
+// styles starts with the default theme (used for errors before the config
+// loads) and is replaced once the config is read.
+var styles = newCLIStyles(theme.Get(theme.Default))
 
 const maxTitleWidth = 60
 
