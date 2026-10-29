@@ -7,13 +7,13 @@ and a scriptable CLI. One static binary, no CGO, your data in a local SQLite fil
 Built with Go and [Charm](https://charm.sh) (Bubble Tea, Bubbles, Lip Gloss,
 Huh, Glamour).
 
-![Main view](docs/screenshots/main.png)
+![tasker demo: adding, completing, searching, a pomodoro and live theme switching](docs/demo.gif)
 
-| Focus mode | Stats | Live theme preview |
-|---|---|---|
-| ![Focus mode](docs/screenshots/focus.png) | ![Stats](docs/screenshots/stats.png) | ![Themes](docs/screenshots/themes.png) |
-
-<!-- An animated demo can be recorded with `make demo` (needs vhs). -->
+| Main view | Focus mode |
+|---|---|
+| ![Main view](docs/screenshots/main.png) | ![Focus mode](docs/screenshots/focus.png) |
+| **Stats** | **Live theme preview** |
+| ![Stats](docs/screenshots/stats.png) | ![Themes](docs/screenshots/themes.png) |
 
 ## Features
 
@@ -193,8 +193,8 @@ make run        # build and launch
 make test       # unit + integration tests (incl. headless TUI tests)
 make lint       # golangci-lint
 make snapshot   # local release build: archives + .deb/.rpm in dist/
-make demo       # record docs/demo.gif with vhs
-make screenshots  # regenerate docs/screenshots (needs python3 + Pillow)
+make demo        # re-record docs/demo.gif (needs vhs, ttyd, ffmpeg)
+make screenshots # regenerate docs/screenshots (needs python3 + Pillow)
 make help       # everything else
 ```
 

@@ -32,14 +32,16 @@ Sleep 1s
 Type "u"
 Sleep 1s
 
-# Add a task with a natural-language due date.
+# Add a task with a natural-language due date. The Today view pre-fills the
+# due field with "today", so clear it before typing.
 Type "a"
 Sleep 500ms
 Type "Write the report"
 Tab
 Tab
-Type "friday 4pm"
-Sleep 800ms
+Ctrl+U
+Type "tomorrow 4pm"
+Sleep 1s
 Ctrl+S
 Sleep 1.2s
 
@@ -61,10 +63,8 @@ Sleep 2s
 Escape
 Sleep 500ms
 
-# Stats, then preview themes live.
-Type "S"
-Sleep 2s
-Escape
+# Preview themes live (stats are shown in the README screenshots: a fresh
+# demo database has no history to chart).
 Type "T"
 Sleep 500ms
 Down
@@ -74,5 +74,8 @@ Sleep 700ms
 Down
 Sleep 700ms
 Enter
-Sleep 1.2s
+Sleep 2s
+
+# Quit off-camera so the GIF ends on the app, not an empty terminal.
+Hide
 Type "q"
