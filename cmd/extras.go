@@ -21,6 +21,10 @@ func newThemesCmd(a *app) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			current := theme.Get(a.cfg.Theme).Name
+			nameW := 0
+			for _, name := range theme.Names() {
+				nameW = max(nameW, len(name))
+			}
 			for _, name := range theme.Names() {
 				t := theme.Get(name)
 				var swatch strings.Builder
@@ -35,7 +39,7 @@ func newThemesCmd(a *app) *cobra.Command {
 				if !t.Dark {
 					kind = "light"
 				}
-				fmt.Fprintf(a.out, "%s%-18s %s  %s\n", marker, name, swatch.String(), styles.dim.Render(kind))
+				fmt.Fprintf(a.out, "%s%-*s  %s  %s\n", marker, nameW, name, swatch.String(), styles.dim.Render(kind))
 			}
 			return nil
 		},
