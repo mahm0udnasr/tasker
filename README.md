@@ -3,8 +3,8 @@
 A fast, keyboard-driven task manager for the terminal, built with Go and
 [Charm](https://charm.sh). Single static binary, no CGO, data in SQLite.
 
-> 🚧 Under active development. The CLI and storage are complete; the full-screen
-> TUI is landing next.
+> 🚧 Under active development: search, filters, sorting, undo, the detail pane,
+> themes and stats are coming next.
 
 ## Install
 
@@ -15,6 +15,34 @@ go install github.com/mahm0udnasr/tasker@latest
 # from source
 git clone https://github.com/mahm0udnasr/tasker && cd tasker
 make install        # → $(go env GOPATH)/bin/tasker
+```
+
+## TUI
+
+Run `tasker` with no arguments. Press `?` for every shortcut.
+
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `j` / `k` | move down / up | `a` | add task |
+| `g` / `G` | top / bottom | `A` | add subtask |
+| `h` / `l`, `Tab` | switch panes | `e` | edit task |
+| `Enter` | expand subtasks | `x` / `Space` | toggle done |
+| `ctrl+r` | reload | `i` | toggle in progress |
+| `?` | help | `d` | delete (with confirmation) |
+| `q` | quit | `p` | cycle priority |
+| | | `t` | set due date |
+| | | `m` | move to project |
+
+In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
+`Esc` cancels. Adding from a view pre-fills it (e.g. due "today" in Today,
+the project when a project is selected).
+
+Every key can be rebound in `config.toml`:
+
+```toml
+[keys]
+add = ["a", "n"]
+toggle_done = ["x", "space", "c"]
 ```
 
 ## CLI quick start

@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/mahm0udnasr/tasker/internal/domain"
+	"github.com/mahm0udnasr/tasker/internal/service"
 	"github.com/mahm0udnasr/tasker/internal/store"
 )
 
@@ -111,12 +111,10 @@ func (a *app) applyPatch(ctx context.Context, s store.Store, t *domain.Task, p t
 		t.SetDue(due, hasTime, now)
 	}
 	if p.Project != nil {
-		name := strings.TrimSpace(*p.Project)
-		switch strings.ToLower(name) {
-		case "", "inbox", "none":
+		if service.IsInbox(*p.Project) {
 			t.ProjectID = ""
-		default:
-			proj, created, err := a.resolveProject(ctx, s, name)
+		} else {
+			proj, created, err := service.ResolveProject(ctx, s, strings.TrimSpace(*p.Project), now)
 			if err != nil {
 				return nil, err
 			}
@@ -163,30 +161,6 @@ func (a *app) applyPatch(ctx context.Context, s store.Store, t *domain.Task, p t
 	}
 	t.UpdatedAt = now
 	return notes, nil
-}
-
-// resolveProject finds a project by name or ID prefix, creating it by name
-// when nothing matches.
-func (a *app) resolveProject(ctx context.Context, s store.Store, nameOrID string) (domain.Project, bool, error) {
-	p, err := s.GetProjectByName(ctx, nameOrID)
-	if err == nil {
-		return p, false, nil
-	}
-	if !errors.Is(err, store.ErrNotFound) {
-		return p, false, err
-	}
-	if p, err := s.GetProject(ctx, nameOrID); err == nil {
-		return p, false, nil
-	}
-	existing, err := s.ListProjects(ctx)
-	if err != nil {
-		return p, false, err
-	}
-	p = domain.NewProject(nameOrID, len(existing), a.now())
-	if err := s.CreateProject(ctx, &p); err != nil {
-		return p, false, err
-	}
-	return p, true, nil
 }
 
 func contains(xs []string, x string) bool {

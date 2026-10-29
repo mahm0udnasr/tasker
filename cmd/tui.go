@@ -2,17 +2,15 @@ package cmd
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/mahm0udnasr/tasker/internal/tui"
 )
 
-// runTUI launches the interactive interface. Until the TUI lands (phase 2)
-// it shows today's tasks.
+// runTUI launches the interactive interface.
 func (a *app) runTUI(ctx context.Context) error {
-	list := newListCmd(a)
-	list.SetContext(ctx)
-	if err := list.Flags().Set("today", "true"); err != nil {
+	s, err := a.Store(ctx)
+	if err != nil {
 		return err
 	}
-	fmt.Fprintln(a.out, styles.header.Render("Today"))
-	return list.RunE(list, nil)
+	return tui.Run(s, a.cfg)
 }
