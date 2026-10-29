@@ -14,8 +14,12 @@ import (
 const Template = `# tasker configuration
 # Docs: https://github.com/mahm0udnasr/tasker#configuration
 
-# Theme: catppuccin-mocha, catppuccin-latte (light), tokyo-night, gruvbox, nord.
-# Switch live in the app with T; the choice is saved here.
+# Theme (switch live in the app with T; the choice is saved here):
+#   dark:  catppuccin-mocha, catppuccin-macchiato, catppuccin-frappe, dracula,
+#          tokyo-night, gruvbox, nord, one-dark, rose-pine, kanagawa,
+#          everforest, solarized-dark
+#   light: catppuccin-latte, rose-pine-dawn, solarized-light
+# Run "tasker themes" to see them all with color swatches.
 theme = "catppuccin-mocha"
 
 # Icons: "nerd" needs a Nerd Font (https://www.nerdfonts.com); "ascii" works anywhere.

@@ -27,8 +27,9 @@ Huh, Glamour).
 - **Pomodoro timer** tied to tasks, with estimates, breaks, desktop
   notifications and a full-screen focus mode.
 - **Stats**: streaks, completion rate, tasks and focus time per day.
-- **Themes**: Catppuccin Mocha & Latte (light), Tokyo Night, Gruvbox, Nord,
-  previewed live and saved to your config.
+- **15 themes**: Catppuccin (Mocha, Macchiato, Frappé, Latte), Dracula,
+  Tokyo Night, Gruvbox, Nord, One Dark, Rosé Pine (and Dawn), Kanagawa,
+  Everforest, Solarized Dark and Light, previewed live and saved to your config.
 - **Responsive**: three panes on wide terminals, one at a time on narrow ones.
 - **Scriptable CLI** with `--json` everywhere, plus JSON export/import.
 - Built for **sync later**: UUIDs, timestamps and soft deletes on every record.
@@ -156,7 +157,7 @@ The config lives at `~/.config/tasker/config.toml` and is created, fully
 commented, on first run. Every key is optional.
 
 ```toml
-theme = "catppuccin-mocha"   # catppuccin-latte, tokyo-night, gruvbox, nord
+theme = "catppuccin-mocha"   # see `tasker themes` for all 15
 icons = "nerd"               # or "ascii" without a Nerd Font
 default_view = "today"       # inbox, today, upcoming, overdue, completed
 show_detail = true           # detail pane on wide terminals

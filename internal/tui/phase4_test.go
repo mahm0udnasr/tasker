@@ -12,6 +12,7 @@ import (
 
 	"github.com/mahm0udnasr/tasker/internal/config"
 	"github.com/mahm0udnasr/tasker/internal/domain"
+	"github.com/mahm0udnasr/tasker/internal/theme"
 )
 
 // newHarnessWithConfig is newHarness with a real config file, so saving
@@ -32,24 +33,24 @@ func TestThemePickerPreviewsRevertsAndSaves(t *testing.T) {
 	cfg, _, _ := config.Load(path)
 	h := newHarnessWithConfig(t, 120, 30, cfg, path)
 	seedDemo(h)
-	theme := func() string { return h.m.(Model).ctx.Styles.Theme.Name }
+	current := func() string { return h.m.(Model).ctx.Styles.Theme.Name }
 
 	h.keys("T")
 	h.contains("Theme")
 	h.contains("catppuccin-latte")
 	h.dump("theme-picker")
 	h.keys("down") // preview the next theme live
-	if theme() == "catppuccin-mocha" {
+	if current() == "catppuccin-mocha" {
 		t.Fatal("moving in the picker should preview")
 	}
 	h.keys("esc") // cancel → back to the original
-	if theme() != "catppuccin-mocha" {
-		t.Fatalf("cancel should revert, theme = %s", theme())
+	if current() != "catppuccin-mocha" {
+		t.Fatalf("cancel should revert, theme = %s", current())
 	}
 
 	h.keys("T", "type:nord", "enter")
-	if theme() != "nord" {
-		t.Fatalf("picked theme = %s", theme())
+	if current() != "nord" {
+		t.Fatalf("picked theme = %s", current())
 	}
 	h.contains("Theme: nord")
 	data, _ := os.ReadFile(path)
@@ -59,7 +60,7 @@ func TestThemePickerPreviewsRevertsAndSaves(t *testing.T) {
 }
 
 func TestEveryThemeRenders(t *testing.T) {
-	for _, name := range []string{"catppuccin-latte", "tokyo-night", "gruvbox", "nord"} {
+	for _, name := range theme.Names() {
 		cfg := config.Default()
 		cfg.Theme, cfg.Seen = name, true
 		h := newHarnessWithConfig(t, 140, 32, cfg, "")
@@ -125,5 +126,20 @@ func TestWelcomeAnyKeyStartsFresh(t *testing.T) {
 	ts, _ := h.store.ListTasks(context.Background(), domain.Filter{IncludeDone: true}, domain.SortManual)
 	if len(ts) != 0 {
 		t.Errorf("no samples expected, got %d tasks", len(ts))
+	}
+}
+
+func TestPickDracula(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfg := config.Default()
+	cfg.Seen = true
+	h := newHarnessWithConfig(t, 120, 30, cfg, path)
+	h.keys("T", "type:dracula", "enter")
+	if got := h.m.(Model).ctx.Styles.Theme.Name; got != "dracula" {
+		t.Fatalf("theme = %s", got)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `theme = "dracula"`) {
+		t.Errorf("not saved:\n%s", data)
 	}
 }
