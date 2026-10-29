@@ -40,12 +40,22 @@ check-tidy: ## Fail if go.mod/go.sum need tidying (as CI does); changes nothing
 
 install: ## Install to $GOBIN (default ~/go/bin)
 	go install -trimpath -ldflags '$(LDFLAGS)' .
+	@echo "Installed $(GOBIN)/$(BINARY)"
+	@case ":$$PATH:" in *":$(GOBIN):"*) ;; *) \
+		echo "Note: $(GOBIN) is not on your PATH. Add it with:"; \
+		echo "  echo 'export PATH=\"\$$PATH:$(GOBIN)\"' >> ~/.bashrc && source ~/.bashrc";; esac
 
 uninstall: ## Remove the installed binary
 	rm -f $(GOBIN)/$(BINARY)
 
+# goreleaser from PATH, else from $(GOBIN) (where `go install` puts it).
+GORELEASER := $(shell command -v goreleaser 2>/dev/null || { [ -x "$(GOBIN)/goreleaser" ] && echo "$(GOBIN)/goreleaser"; })
+
 snapshot: ## Build release archives and .deb/.rpm locally into dist/ (needs goreleaser)
-	goreleaser release --snapshot --clean
+	@[ -n "$(GORELEASER)" ] || { echo "goreleaser not found. Install it with:"; \
+		echo "  go install github.com/goreleaser/goreleaser/v2@latest"; exit 1; }
+	$(GORELEASER) release --snapshot --clean
+	@echo; echo "Packages:"; ls -1 dist/*.deb dist/*.rpm
 
 demo: build ## Record docs/demo.gif (needs vhs)
 	PATH="$(CURDIR)/bin:$$PATH" vhs docs/demo.tape
