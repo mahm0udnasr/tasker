@@ -7,7 +7,7 @@ and a scriptable CLI. One static binary, no CGO, your data in a local SQLite fil
 Built with Go and [Charm](https://charm.sh) (Bubble Tea, Bubbles, Lip Gloss,
 Huh, Glamour).
 
-![tasker demo: adding, completing, searching, a pomodoro and live theme switching](docs/demo.gif)
+![tasker demo: adding with name completion, markdown notes, completing, searching, a pomodoro and live theme switching](docs/demo.gif)
 
 | Main view | Focus mode |
 |---|---|
@@ -19,8 +19,10 @@ Huh, Glamour).
 
 - **Smart views**: Inbox, Today (includes overdue), Upcoming, Overdue,
   Completed, plus every project and tag, all with live counts.
-- **Fast capture**: `tomorrow 5pm`, `next fri`, `in 3 days` just work.
-- **Subtasks** with progress (`2/5`), **priorities**, **tags**, **markdown notes**.
+- **Fast capture**: `tomorrow 5pm`, `next fri`, `in 3 days` just work, and
+  existing project and tag names complete with `Tab`.
+- **Subtasks** with progress (`2/5`), **priorities** and **tags**.
+- **Markdown notes**: press `n` for a multi-line editor, or `Ctrl+E` for `$EDITOR`.
 - **Detail pane**, fuzzy **search** (`/`), **filters**, **sorting**, manual
   reordering, and a **command palette** (`Ctrl+P`) with every action.
 - **Undo** (`u`) for completes, edits, moves and deletes, up to 50 steps.
@@ -94,14 +96,22 @@ All keys are vim-style by default and can be rebound in the config.
 | `?` | help | | |
 | `q` | quit | | |
 
-In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
-`Esc` cancels. In Project and Tags, typing the start of an existing name shows
-the rest in grey: `Tab` completes it, and `↑`/`↓` pick another match. Adding from a view pre-fills it: due "today" in Today, the
-project when a project is selected, the tag when a tag is.
+| Task form (`a`, `A`, `e`) | | Notes editor (`n`) | |
+|---|---|---|---|
+| `Tab` | next field, or complete a name | `Enter` | new line |
+| `Shift+Tab` | previous field | `Ctrl+E` | open in `$EDITOR` |
+| `↑` / `↓` | other project / tag matches | `Ctrl+S` | save |
+| `Ctrl+S` | save | `Esc` | cancel |
+| `Esc` | cancel | | |
 
-Notes are written separately: press `n` on a task to add or edit its markdown
-notes, shown in the detail pane. `Enter` starts a new line, `Ctrl+E` opens them
-in `$EDITOR`, `Ctrl+S` saves, `Esc` cancels.
+These keys are fixed; the ones above them can be rebound.
+
+In Project and Tags, typing the start of an existing name shows the rest in
+grey, and `Tab` completes it. `Enter` or `Ctrl+S` keep what you typed, so a new
+name creates a new project or tag. Adding from a view pre-fills the form: due
+"today" in Today, the project when a project is selected, the tag when a tag is.
+
+Notes are written separately from the form and shown in the detail pane.
 
 ## Pomodoro
 

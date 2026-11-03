@@ -39,10 +39,35 @@ Sleep 500ms
 Type "Write the report"
 Tab
 Ctrl+U
-Type "tomorrow 4pm"
-Sleep 1s
+Type "tonight"
+Sleep 800ms
+Tab
+Tab
+
+# Existing project and tag names complete with tab.
+Type "get"
+Sleep 900ms
+Tab
+Sleep 500ms
+Tab
+Type "fo"
+Sleep 900ms
+Tab
+Sleep 800ms
 Ctrl+S
 Sleep 1.2s
+
+# Write multi-line markdown notes for it.
+Type "n"
+Sleep 500ms
+Type "## Outline"
+Enter
+Type "- **Summary** first"
+Enter
+Type "- then the numbers"
+Sleep 900ms
+Ctrl+S
+Sleep 2s
 
 # Search, jump, expand subtasks.
 Type "/"
@@ -74,6 +99,12 @@ Down
 Sleep 700ms
 Enter
 Sleep 2s
+
+# The shortcuts box lists everything, including the form and notes keys.
+Type "?"
+Sleep 2.5s
+Escape
+Sleep 500ms
 
 # Quit off-camera so the GIF ends on the app, not an empty terminal.
 Hide

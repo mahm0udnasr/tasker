@@ -85,6 +85,10 @@ func TestPomodoroPaletteAndHelp(t *testing.T) {
 	h.keys("?")
 	h.contains("Pomodoro")
 	h.contains("focus mode")
+	for _, want := range []string{"add / edit notes", "Task form", "next field / complete name",
+		"Notes editor", "open in $EDITOR"} {
+		h.contains(want)
+	}
 	h.keys("esc")
 }
 
