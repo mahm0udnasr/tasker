@@ -38,6 +38,7 @@ func init() {
 		{common.ActAdd, "Add task", false, func(m *Model, _ domain.Task) tea.Cmd { return m.openAddForm("", "") }},
 		{common.ActAddSubtask, "Add subtask", true, (*Model).addSubtask},
 		{common.ActEdit, "Edit task", true, (*Model).openEditForm},
+		{common.ActNotes, "Add / edit notes", true, (*Model).openNotes},
 		{common.ActToggleDone, "Toggle done", true, (*Model).toggleDone},
 		{common.ActToggleStart, "Toggle in progress", true, (*Model).toggleStart},
 		{common.ActPriority, "Cycle priority", true, (*Model).cyclePriority},
@@ -360,6 +361,7 @@ const (
 	actDelete actionKind = iota
 	actSetDue
 	actMove
+	actNotes
 )
 
 // taskActionMsg is produced by an overlay (confirm, prompt, picker) once the
@@ -389,6 +391,8 @@ func (m *Model) finishTaskAction(a taskActionMsg) tea.Cmd {
 		return updateTask(m.store, t, text)
 	case actMove:
 		return moveTask(m.store, a.task, a.value, now)
+	case actNotes:
+		return saveNotes(m.store, a.task.ID, a.value, now)
 	}
 	return nil
 }
@@ -417,6 +421,13 @@ func (m *Model) openEditForm(t domain.Task) tea.Cmd {
 		Task: &t, Project: m.projectName(t.ProjectID), Projects: m.projectNames(),
 	})
 	return m.pushOverlay(f, init)
+}
+
+func (m *Model) openNotes(t domain.Task) tea.Cmd {
+	n, init := overlay.NewNotes(m.ctx, "Notes · "+t.Title, t.Description, func(s string) tea.Msg {
+		return taskActionMsg{kind: actNotes, task: t, value: s}
+	})
+	return m.pushOverlay(n, init)
 }
 
 func (m *Model) openDuePrompt(t domain.Task) tea.Cmd {

@@ -35,6 +35,10 @@ func (o *detailOverlay) Update(msg tea.Msg) (common.Overlay, tea.Cmd) {
 		if msg.String() == "esc" || msg.String() == "q" || o.ctx.Keys.Is(msg, common.ActDetail) {
 			return o, common.CloseOverlay
 		}
+		if o.ctx.Keys.Is(msg, common.ActNotes) {
+			// This modal shows a copy of the task, so close it rather than leave it stale.
+			return o, tea.Sequence(common.CloseOverlay, func() tea.Msg { return paletteMsg{name: common.ActNotes} })
+		}
 		var cmd tea.Cmd
 		o.d, cmd = o.d.Update(msg)
 		return o, cmd
@@ -45,5 +49,5 @@ func (o *detailOverlay) Update(msg tea.Msg) (common.Overlay, tea.Cmd) {
 // View implements common.Overlay.
 func (o *detailOverlay) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, o.d.View(),
-		o.ctx.Styles.KeyDesc.Render(" j/k scroll · esc close"))
+		o.ctx.Styles.KeyDesc.Render(" j/k scroll · "+o.ctx.Keys.Get(common.ActNotes).Help().Key+" notes · esc close"))
 }

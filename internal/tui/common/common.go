@@ -77,15 +77,14 @@ func CloseOverlay() tea.Msg { return CloseOverlayMsg{} }
 // TaskDraft is what the add/edit form produces. Fields are raw user input;
 // the root resolves them (dates, projects) when saving.
 type TaskDraft struct {
-	ID          string // empty for a new task
-	ParentID    string
-	Title       string
-	Description string
-	Due         string
-	Priority    domain.Priority
-	Project     string // project name; "" = Inbox
-	Tags        string // comma-separated
-	Estimate    string // planned pomodoros; "" or "0" for none
+	ID       string // empty for a new task
+	ParentID string
+	Title    string
+	Due      string
+	Priority domain.Priority
+	Project  string // project name; "" = Inbox
+	Tags     string // comma-separated
+	Estimate string // planned pomodoros; "" or "0" for none
 }
 
 // SaveDraftMsg asks the root to persist a draft.

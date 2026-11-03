@@ -266,7 +266,7 @@ func (m *Model) hints() []key.Binding {
 	case paneSidebar:
 		return k.Hints(common.ActRight, common.ActAdd, common.ActPalette, common.ActHelp)
 	case paneDetail:
-		return k.Hints(common.ActEdit, common.ActDetail, common.ActHelp)
+		return k.Hints(common.ActNotes, common.ActEdit, common.ActDetail, common.ActHelp)
 	}
 	return k.Hints(common.ActAdd, common.ActToggleDone, common.ActSearch, common.ActPalette, common.ActHelp)
 }

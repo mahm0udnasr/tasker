@@ -218,7 +218,7 @@ func saveDraft(s store.Store, d common.TaskDraft, now time.Time) tea.Cmd {
 			t.ParentID = d.ParentID
 			undo.createdTaskIDs = []string{t.ID}
 		}
-		t.Title, t.Description, t.Priority = d.Title, strings.TrimSpace(d.Description), d.Priority
+		t.Title, t.Priority = d.Title, d.Priority
 		due, hasTime, err := domain.ParseDue(d.Due, now)
 		if err != nil {
 			return mutatedMsg{}, err
@@ -255,6 +255,27 @@ func saveDraft(s store.Store, d common.TaskDraft, now time.Time) tea.Cmd {
 		}
 		undo.desc = verb + " “" + t.Title + "”"
 		return mutatedMsg{text: undo.desc + note, selectID: t.ID, expandID: t.ParentID, undo: undo}, nil
+	})
+}
+
+// saveNotes replaces a task's notes. The task is read fresh because a focus
+// session can change it while the editor is open.
+func saveNotes(s store.Store, id, notes string, now time.Time) tea.Cmd {
+	return mutate(func(ctx context.Context) (mutatedMsg, error) {
+		t, err := s.GetTask(ctx, id)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
+		before := t
+		t.Description, t.UpdatedAt = notes, now
+		if err := s.UpdateTask(ctx, &t); err != nil {
+			return mutatedMsg{}, err
+		}
+		text := "Saved notes of “" + t.Title + "”"
+		if notes == "" {
+			text = "Cleared notes of “" + t.Title + "”"
+		}
+		return mutatedMsg{text: text, selectID: t.ID, undo: &undoEntry{desc: text, tasks: []domain.Task{before}}}, nil
 	})
 }
 

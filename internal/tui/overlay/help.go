@@ -21,7 +21,7 @@ var helpSections = []struct {
 }{
 	{"Navigate", []string{common.ActUp, common.ActDown, common.ActTop, common.ActBottom,
 		common.ActPageUp, common.ActPageDown, common.ActLeft, common.ActRight, common.ActNextPane, common.ActExpand}},
-	{"Tasks", []string{common.ActAdd, common.ActAddSubtask, common.ActEdit, common.ActToggleDone,
+	{"Tasks", []string{common.ActAdd, common.ActAddSubtask, common.ActEdit, common.ActNotes, common.ActToggleDone,
 		common.ActToggleStart, common.ActDelete, common.ActPriority, common.ActDue, common.ActMove,
 		common.ActMoveUp, common.ActMoveDown}},
 	{"Pomodoro", []string{common.ActPomodoro, common.ActPomoStop, common.ActPomoSkip, common.ActFocusMode}},

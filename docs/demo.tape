@@ -38,7 +38,6 @@ Type "a"
 Sleep 500ms
 Type "Write the report"
 Tab
-Tab
 Ctrl+U
 Type "tomorrow 4pm"
 Sleep 1s

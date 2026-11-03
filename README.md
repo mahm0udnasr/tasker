@@ -74,10 +74,11 @@ All keys are vim-style by default and can be rebound in the config.
 | `j` / `k` | move down / up | `a` | add task |
 | `g` / `G` | top / bottom | `A` | add subtask |
 | `Ctrl+D` / `Ctrl+U` | page down / up | `e` | edit task |
-| `h` / `l` | focus left / right pane | `x` / `Space` | toggle done |
-| `Tab` / `Shift+Tab` | cycle panes | `i` | toggle in progress |
-| `Enter` | expand subtasks | `d` | delete task |
-| `v` | toggle detail pane | `p` | cycle priority |
+| `h` / `l` | focus left / right pane | `n` | add / edit notes |
+| `Tab` / `Shift+Tab` | cycle panes | `x` / `Space` | toggle done |
+| `Enter` | expand subtasks | `i` | toggle in progress |
+| `v` | toggle detail pane | `d` | delete task |
+| | | `p` | cycle priority |
 | | | `t` | set due date |
 | **Find & organize** | | `m` | move to project |
 | `/` | search all tasks | `J` / `K` | move task down / up (manual sort) |
@@ -96,6 +97,10 @@ All keys are vim-style by default and can be rebound in the config.
 In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
 `Esc` cancels. Adding from a view pre-fills it: due "today" in Today, the
 project when a project is selected, the tag when a tag is.
+
+Notes are written separately: press `n` on a task to add or edit its markdown
+notes, shown in the detail pane. `Enter` starts a new line, `Ctrl+E` opens them
+in `$EDITOR`, `Ctrl+S` saves, `Esc` cancels.
 
 ## Pomodoro
 
@@ -174,7 +179,7 @@ notify = true                # desktop notifications via notify-send
 bell = true                  # terminal bell
 
 [keys]                       # action = [keys]; names are shown in the help (?)
-add = ["a", "n"]
+add = ["a", "+"]
 toggle_done = ["x", "space"]
 ```
 

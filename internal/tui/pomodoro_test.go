@@ -63,7 +63,7 @@ func TestPomodoroRestoredOnLaunch(t *testing.T) {
 func TestEstimateInForm(t *testing.T) {
 	h := newHarness(t, 120, 40)
 	h.keys("a", "type:Big project")
-	for range 5 { // title → notes → due → priority → project → tags → estimate
+	for range 4 { // title → due → priority → project → tags → estimate
 		h.keys("tab")
 	}
 	h.keys("tab", "type:6", "ctrl+s")

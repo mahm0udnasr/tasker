@@ -19,6 +19,7 @@ const (
 	ActAdd         = "add"
 	ActAddSubtask  = "add_subtask"
 	ActEdit        = "edit"
+	ActNotes       = "notes"
 	ActToggleDone  = "toggle_done"
 	ActToggleStart = "toggle_progress"
 	ActDelete      = "delete"
@@ -69,6 +70,7 @@ var defaults = []actionDef{
 	{ActAdd, []string{"a"}, "", "add task"},
 	{ActAddSubtask, []string{"A"}, "", "add subtask"},
 	{ActEdit, []string{"e"}, "", "edit task"},
+	{ActNotes, []string{"n"}, "", "add / edit notes"},
 	{ActToggleDone, []string{"x", "space"}, "x/space", "toggle done"},
 	{ActToggleStart, []string{"i"}, "", "toggle in progress"},
 	{ActDelete, []string{"d"}, "", "delete task"},

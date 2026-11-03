@@ -46,7 +46,7 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 		t := o.Task
 		title = "Edit task"
 		d.ID, d.ParentID = t.ID, t.ParentID
-		d.Title, d.Description, d.Priority = t.Title, t.Description, t.Priority
+		d.Title, d.Priority = t.Title, t.Priority
 		d.Tags = strings.Join(t.Tags, ", ")
 		if t.Estimate > 0 {
 			d.Estimate = strconv.Itoa(t.Estimate)
@@ -71,8 +71,6 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 				}
 				return nil
 			}),
-		huh.NewText().Key("description").Title("Notes").Placeholder("Markdown supported").
-			Lines(2).Value(&d.Description),
 		huh.NewInput().Key("due").Title("Due").Placeholder(`"tomorrow 5pm", "fri", "2026-12-24"`).
 			Value(&d.Due).
 			DescriptionFunc(func() string { return duePreview(ctx, d.Due) }, &d.Due).

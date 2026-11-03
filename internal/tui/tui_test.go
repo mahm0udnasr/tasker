@@ -86,6 +86,97 @@ func TestFormRequiresTitle(t *testing.T) {
 	h.notContains("New task")
 }
 
+func TestFormHasNoNotesField(t *testing.T) {
+	h := newHarness(t, 120, 40)
+	h.keys("a")
+	h.contains("New task")
+	h.notContains("Notes")
+}
+
+func TestNotesFromDetails(t *testing.T) {
+	h := newHarness(t, 120, 40)
+	h.keys("a", "type:Write report", "ctrl+s")
+	h.contains("No notes. Press n to add some.")
+
+	h.keys("n")
+	h.contains("Notes · Write report")
+	h.keys("type:line one", "enter", "type:line two", "enter", "enter",
+		"type:- item a", "enter", "type:- item b", "ctrl+s")
+	h.contains("Saved notes of “Write report”")
+	h.contains("line two")
+	h.contains("• item b")
+	h.notContains("line one line two")
+
+	ctx := context.Background()
+	ts, _ := h.store.ListTasks(ctx, domain.Filter{IncludeDone: true}, domain.SortManual)
+	if len(ts) != 1 || ts[0].Description != "line one\nline two\n\n- item a\n- item b" {
+		t.Fatalf("notes not saved as typed: %+v", ts)
+	}
+
+	// The details pane can open the editor too, and it starts from the notes.
+	h.keys("l", "n", "enter", "type:- item c", "ctrl+s")
+	h.contains("• item c")
+
+	// Undo restores the previous notes; editing the task keeps them.
+	h.keys("u")
+	h.notContains("item c")
+	h.keys("e", "type: v2", "ctrl+s")
+	got, err := h.store.GetTask(ctx, ts[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Write report v2" || got.Description != ts[0].Description {
+		t.Fatalf("edit form changed notes: %+v", got)
+	}
+}
+
+func TestNotesCancelAndClear(t *testing.T) {
+	h := newHarness(t, 120, 40)
+	h.seed("Noted", func(tk *domain.Task) { tk.Description = "keep me"; tk.SetDue(&h.now, false, h.now) })
+	h.keys("ctrl+r", "n")
+	h.contains("Notes · Noted")
+	h.keys("type:!!!", "esc")
+	h.notContains("!!!")
+	h.contains("keep me")
+
+	h.keys("n", "ctrl+s") // no change: nothing to save or undo
+	h.notContains("Saved notes")
+
+	h.keys("n")
+	for range len("keep me") {
+		h.keys("backspace")
+	}
+	h.keys("ctrl+s")
+	h.contains("Cleared notes of “Noted”")
+	h.contains("No notes.")
+}
+
+func TestNotesKeepLongText(t *testing.T) {
+	h := newHarness(t, 120, 40)
+	long := strings.TrimSpace(strings.Repeat("line\n", 150))
+	task := h.seed("Long", func(tk *domain.Task) { tk.Description = long; tk.SetDue(&h.now, false, h.now) })
+	h.keys("ctrl+r", "n", "enter", "type:more", "ctrl+s")
+	got, err := h.store.GetTask(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Description != long+"\nmore" {
+		t.Fatalf("notes cut to %d lines", strings.Count(got.Description, "\n")+1)
+	}
+}
+
+func TestNotesFromNarrowDetailModal(t *testing.T) {
+	h := newHarness(t, 70, 24)
+	h.seed("Noted", func(tk *domain.Task) { tk.SetDue(&h.now, false, h.now) })
+	h.keys("ctrl+r", "v")
+	h.contains("esc close")
+	h.keys("n")
+	h.notContains("esc close")
+	h.contains("Notes · Noted")
+	h.keys("type:hello", "ctrl+s")
+	h.contains("Saved notes of “Noted”")
+}
+
 func TestToggleDoneAndPriority(t *testing.T) {
 	h := newHarness(t, 120, 30)
 	seedDemo(h)

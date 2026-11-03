@@ -232,7 +232,7 @@ func (m *Model) render(w int) string {
 
 	b.WriteString("\n" + st.Muted.Render(strings.Repeat("─", w)) + "\n")
 	if strings.TrimSpace(t.Description) == "" {
-		b.WriteString(st.Empty.Render("No notes. Press " + m.ctx.Keys.Get(common.ActEdit).Help().Key + " to add some."))
+		b.WriteString(st.Empty.Render("No notes. Press " + m.ctx.Keys.Get(common.ActNotes).Help().Key + " to add some."))
 		b.WriteString("\n")
 	} else {
 		b.WriteString(m.markdown(t.Description, w))
@@ -258,6 +258,7 @@ func (m *Model) markdown(src string, w int) string {
 			glamour.WithStyles(glamourStyle(m.ctx)),
 			glamour.WithWordWrap(w),
 			glamour.WithEmoji(),
+			glamour.WithPreservedNewLines(),
 		)
 		if err != nil {
 			return lipgloss.NewStyle().Width(w).Render(src)
