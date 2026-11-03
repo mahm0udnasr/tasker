@@ -398,7 +398,7 @@ func (m *Model) finishTaskAction(a taskActionMsg) tea.Cmd {
 }
 
 func (m *Model) openAddForm(parentID, parentName string) tea.Cmd {
-	o := form.Options{ParentID: parentID, ParentName: parentName, Projects: m.projectNames()}
+	o := form.Options{ParentID: parentID, ParentName: parentName, Projects: m.projectNames(), KnownTags: m.tagNames()}
 	// Pre-fill from the current scope so a task added in a view shows up there.
 	o.Project = m.projectName(m.scope.ProjectID)
 	if parentID == "" {
@@ -418,7 +418,7 @@ func (m *Model) openAddForm(parentID, parentName string) tea.Cmd {
 
 func (m *Model) openEditForm(t domain.Task) tea.Cmd {
 	f, init := form.New(m.ctx, form.Options{
-		Task: &t, Project: m.projectName(t.ProjectID), Projects: m.projectNames(),
+		Task: &t, Project: m.projectName(t.ProjectID), Projects: m.projectNames(), KnownTags: m.tagNames(),
 	})
 	return m.pushOverlay(f, init)
 }

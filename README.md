@@ -95,7 +95,8 @@ All keys are vim-style by default and can be rebound in the config.
 | `q` | quit | | |
 
 In the add/edit form: `Tab`/`Shift+Tab` move between fields, `Ctrl+S` saves,
-`Esc` cancels. Adding from a view pre-fills it: due "today" in Today, the
+`Esc` cancels. In Project and Tags, typing the start of an existing name shows
+the rest in grey: `Tab` completes it, and `↑`/`↓` pick another match. Adding from a view pre-fills it: due "today" in Today, the
 project when a project is selected, the tag when a tag is.
 
 Notes are written separately: press `n` on a task to add or edit its markdown

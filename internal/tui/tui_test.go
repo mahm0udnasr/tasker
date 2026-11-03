@@ -86,6 +86,100 @@ func TestFormRequiresTitle(t *testing.T) {
 	h.notContains("New task")
 }
 
+// formWithNames opens the add form on Project, with projects and tags to offer.
+func formWithNames(t *testing.T) *harness {
+	t.Helper()
+	h := newHarness(t, 120, 40)
+	for _, name := range []string{"University", "Uni", "Home"} {
+		p := domain.NewProject(name, 0, h.now)
+		if err := h.store.CreateProject(context.Background(), &p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.seed("Old", func(tk *domain.Task) { tk.Tags = []string{"work", "personal", "workshop"} })
+	h.keys("ctrl+r", "a", "type:New", "tab", "tab", "tab")
+	return h
+}
+
+func savedTask(t *testing.T, h *harness) domain.Task {
+	t.Helper()
+	ts, err := h.store.ListTasks(context.Background(), domain.Filter{IncludeDone: true}, domain.SortManual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range ts {
+		if task.Title == "New" {
+			return task
+		}
+	}
+	t.Fatalf("task not saved: %+v", ts)
+	return domain.Task{}
+}
+
+func TestFormCompletesProject(t *testing.T) {
+	h := formWithNames(t)
+	h.keys("type:ho")
+	h.contains("> home")
+	h.contains("tab complete")
+	h.keys("tab", "ctrl+s")
+	h.contains("Added “New”")
+	h.notContains("created project")
+	task := savedTask(t, h)
+	if p, err := h.store.GetProject(context.Background(), task.ProjectID); err != nil || p.Name != "Home" {
+		t.Fatalf("project: %+v, %v", p, err)
+	}
+}
+
+func TestFormTabLeavesExactProject(t *testing.T) {
+	h := formWithNames(t)
+	h.keys("type:Uni", "tab", "type:x", "ctrl+s") // "x" lands in Tags, not "University"
+	h.notContains("created project")
+	if task := savedTask(t, h); len(task.Tags) != 1 || task.Tags[0] != "x" {
+		t.Fatalf("tags: %+v", task.Tags)
+	}
+}
+
+func TestFormNewProjectStaysAsTyped(t *testing.T) {
+	h := formWithNames(t)
+	h.keys("type:Zed")
+	h.notContains("tab complete")
+	h.keys("tab", "ctrl+s")
+	h.contains("created project Zed")
+}
+
+func TestFormCompletesTags(t *testing.T) {
+	h := formWithNames(t)
+	h.keys("tab", "type:pe")
+	h.contains("> personal")
+	h.keys("tab")
+	h.contains("> personal")
+	h.keys("type:, wo")
+	h.contains("> personal, work")
+	h.contains("↑/↓ other matches")
+	h.keys("down")
+	h.contains("> personal, workshop")
+	h.keys("tab", "ctrl+s")
+	task := savedTask(t, h)
+	if strings.Join(task.Tags, ",") != "personal,workshop" {
+		t.Fatalf("tags: %+v", task.Tags)
+	}
+}
+
+func TestFormDoesNotOfferUsedOrStaleTags(t *testing.T) {
+	h := formWithNames(t)
+	h.keys("tab", "type:personal, p")
+	h.notContains("tab complete") // already used
+	h.keys("backspace")
+	h.notContains("tab complete")
+	h.keys("type:w", "backspace", "backspace", "backspace")
+	h.notContains("tab complete")
+	h.keys("tab") // nothing to complete: moves on to Estimate
+	h.keys("type:3", "ctrl+s")
+	if task := savedTask(t, h); task.Estimate != 3 {
+		t.Fatalf("estimate: %d", task.Estimate)
+	}
+}
+
 func TestFormHasNoNotesField(t *testing.T) {
 	h := newHarness(t, 120, 40)
 	h.keys("a")

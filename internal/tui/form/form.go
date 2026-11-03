@@ -2,6 +2,7 @@
 package form
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -24,6 +25,10 @@ type Model struct {
 	draft *common.TaskDraft
 	title string
 	err   string
+
+	// Names offered as completions, sorted so that an exact match always
+	// comes before longer names that start with it.
+	projects, tags []string
 }
 
 // Options seeds the form.
@@ -35,6 +40,7 @@ type Options struct {
 	Due        string // prefilled due input for new tasks
 	Tags       string // prefilled tags for new tasks
 	Projects   []string
+	KnownTags  []string // every existing tag, offered as completions
 }
 
 // New builds the form overlay.
@@ -61,6 +67,7 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 		title = "New subtask of “" + o.ParentName + "”"
 	}
 
+	projects, tags := sortedNames(o.Projects), sortedNames(o.KnownTags)
 	isSubtask := d.ParentID != ""
 	fields := []huh.Field{
 		huh.NewInput().Key("title").Title("Title").Placeholder("What needs doing?").
@@ -83,10 +90,11 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 	}
 	if !isSubtask { // subtasks always live in their parent's project
 		fields = append(fields, huh.NewInput().Key("project").Title("Project").
-			Placeholder("Inbox").Suggestions(o.Projects).Value(&d.Project))
+			Placeholder("Inbox").Suggestions(projects).Value(&d.Project))
 	}
 	fields = append(fields, huh.NewInput().Key("tags").Title("Tags").
-		Placeholder("comma, separated").Value(&d.Tags),
+		Placeholder("comma, separated").Value(&d.Tags).
+		SuggestionsFunc(func() []string { return tagSuggestions(tags, d.Tags) }, &d.Tags),
 		huh.NewInput().Key("estimate").Title("Estimate").Placeholder("pomodoros, e.g. 4 (optional)").
 			Value(&d.Estimate).CharLimit(2).Validate(func(s string) error {
 			_, err := ParseEstimate(s)
@@ -100,7 +108,76 @@ func New(ctx *common.Context, o Options) (*Model, tea.Cmd) {
 		WithShowErrors(true)
 	f.SubmitCmd, f.CancelCmd = nil, nil
 
-	return &Model{ctx: ctx, form: f, draft: d, title: title}, f.Init()
+	return &Model{ctx: ctx, form: f, draft: d, title: title, projects: projects, tags: tags}, f.Init()
+}
+
+// noSuggestion stands in for an empty suggestion list. huh turns suggestions
+// off for an empty list without clearing the current match, which would leave
+// an out-of-date completion on screen.
+const noSuggestion = "\x00"
+
+// tagSuggestions offers the known tags that complete the last comma-separated
+// entry of value. Each is the whole field value, as the input matches on that.
+func tagSuggestions(known []string, value string) []string {
+	start := strings.LastIndex(value, ",") + 1
+	entry := strings.TrimLeft(value[start:], " ")
+	if entry == "" {
+		return []string{noSuggestion}
+	}
+	used := strings.Split(value[:start], ",")
+	for i := range used {
+		used[i] = strings.ToLower(strings.TrimSpace(used[i]))
+	}
+	prefix := value[:len(value)-len(entry)]
+	out := []string{}
+	for _, tag := range known {
+		if !slices.Contains(used, tag) {
+			out = append(out, prefix+tag)
+		}
+	}
+	if len(out) == 0 {
+		return []string{noSuggestion}
+	}
+	return out
+}
+
+func sortedNames(names []string) []string {
+	out := slices.Clone(names)
+	slices.SortStableFunc(out, func(a, b string) int {
+		return strings.Compare(strings.ToLower(a), strings.ToLower(b))
+	})
+	return out
+}
+
+// completions counts the names the focused field could complete to. It is 0
+// when what's typed already is the first match, so tab can move on from it.
+func (m *Model) completions() int {
+	var value string
+	var names []string
+	f := m.form.GetFocusedField()
+	switch {
+	case f == nil:
+		return 0
+	case f.GetKey() == "project":
+		value, names = m.draft.Project, m.projects
+	case f.GetKey() == "tags":
+		value, names = m.draft.Tags, tagSuggestions(m.tags, m.draft.Tags)
+	}
+	if value == "" {
+		return 0
+	}
+	lower := strings.ToLower(value)
+	n := 0
+	for _, name := range names {
+		if !strings.HasPrefix(strings.ToLower(name), lower) {
+			continue
+		}
+		if n == 0 && len(name) == len(value) {
+			return 0
+		}
+		n++
+	}
+	return n
 }
 
 func priorityOptions() []huh.Option[domain.Priority] {
@@ -139,6 +216,10 @@ func (m *Model) Update(msg tea.Msg) (common.Overlay, tea.Cmd) {
 			return m, common.CloseOverlay
 		case "ctrl+s":
 			return m, m.submit()
+		case "tab":
+			if m.completions() > 0 { // huh accepts a suggestion on ctrl+e
+				msg = tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl}
+			}
 		}
 	}
 	f, cmd := m.form.Update(msg)
@@ -184,7 +265,14 @@ func (m *Model) View() string {
 	if m.err != "" {
 		parts = append(parts, st.Danger.Render(m.ctx.Icons.Cross+" "+m.err))
 	}
-	parts = append(parts, "", st.KeyDesc.Render("tab/shift+tab move · ctrl+s save · esc cancel"))
+	hint := "tab/shift+tab move · ctrl+s save · esc cancel"
+	switch n := m.completions(); {
+	case n == 1:
+		hint = "tab complete · ctrl+s save · esc cancel"
+	case n > 1:
+		hint = "tab complete · ↑/↓ other matches · ctrl+s save · esc cancel"
+	}
+	parts = append(parts, "", st.KeyDesc.Render(hint))
 	// Vertical padding is dropped so the form fits 24-row terminals.
 	return st.Modal.Padding(0, 2).Width(width + 6).Render(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }

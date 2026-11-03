@@ -279,6 +279,14 @@ func (m Model) projectNames() []string {
 	return out
 }
 
+func (m Model) tagNames() []string {
+	out := make([]string, len(m.tags))
+	for i, t := range m.tags {
+		out[i] = t.Name
+	}
+	return out
+}
+
 func (m Model) project(id string) domain.Project {
 	for _, p := range m.projects {
 		if p.ID == id {
