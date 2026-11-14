@@ -87,6 +87,33 @@ Sleep 2s
 Escape
 Sleep 500ms
 
+# Daily habits: open the view, add a few, tick off today.
+Ctrl+P
+Sleep 400ms
+Type "habits"
+Sleep 600ms
+Enter
+Sleep 1s
+Type "a"
+Sleep 400ms
+Type "Read 20 pages"
+Enter
+Sleep 700ms
+Type "a"
+Sleep 300ms
+Type "Morning stretch"
+Enter
+Sleep 700ms
+Type "a"
+Sleep 300ms
+Type "Drink 2L of water"
+Enter
+Sleep 900ms
+Type "x"
+Sleep 900ms
+Type "gx"
+Sleep 2s
+
 # Preview themes live (stats are shown in the README screenshots: a fresh
 # demo database has no history to chart).
 Type "T"

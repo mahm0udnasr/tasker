@@ -72,7 +72,7 @@ demo: build ## Record docs/demo.gif (needs vhs, ttyd and ffmpeg)
 screenshots: ## Regenerate docs/screenshots from the TUI (needs python3 + Pillow)
 	@mkdir -p .shots
 	TASKER_SNAPSHOT_DIR=$(CURDIR)/.shots go test -count=1 -run TestScreenshots ./internal/tui/
-	for n in main focus stats; do python3 docs/screenshots/render.py .shots/shot-$$n.ansi docs/screenshots/$$n.png 1e1e2e cdd6f4; done
+	for n in main focus stats habits help; do python3 docs/screenshots/render.py .shots/shot-$$n.ansi docs/screenshots/$$n.png 1e1e2e cdd6f4; done
 	python3 docs/screenshots/render.py .shots/shot-themes.ansi docs/screenshots/themes.png 2e3440 eceff4
 	rm -rf .shots
 

@@ -8,13 +8,15 @@ CGO, your data in a local SQLite file.
 Built with Go and [Charm](https://charm.sh) (Bubble Tea, Bubbles, Lip Gloss,
 Huh, Glamour).
 
-![tasker demo: adding with name completion, markdown notes, completing, searching, a pomodoro and live theme switching](docs/demo.gif)
+![tasker demo: adding with name completion, markdown notes, completing, searching, a pomodoro, daily habits and live theme switching](docs/demo.gif)
 
 | Main view | Focus mode |
 |---|---|
 | ![Main view](docs/screenshots/main.png) | ![Focus mode](docs/screenshots/focus.png) |
 | **Stats** | **Live theme preview** |
 | ![Stats](docs/screenshots/stats.png) | ![Themes](docs/screenshots/themes.png) |
+| **Habits** | **Keyboard shortcuts** |
+| ![Habits](docs/screenshots/habits.png) | ![Keyboard shortcuts](docs/screenshots/help.png) |
 
 ## Features
 
