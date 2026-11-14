@@ -81,6 +81,13 @@ func (h *Help) View() string {
 		}
 		cols = append(cols, column(sec.title, rows))
 	}
+	// Habits reuse the task keys; list them as they act in that view.
+	habitRows := make([][2]string, len(common.HabitActions))
+	for i, a := range common.HabitActions {
+		b := h.ctx.Keys.Habit(a).Help()
+		habitRows[i] = [2]string{b.Key, b.Desc}
+	}
+	habits := column("Habits", habitRows)
 	form, notes := column("Task form", helpForm), column("Notes editor", helpNotes)
 	gap := "    "
 	v := func(parts ...string) string {
@@ -95,12 +102,12 @@ func (h *Help) View() string {
 	}
 	// Widest layout that fits: three columns, then two, then one.
 	nav, tasks, pomo, general := cols[0], cols[1], cols[2], cols[3]
-	body := lipgloss.JoinHorizontal(lipgloss.Top, v(nav, form), gap, v(tasks, notes), gap, v(pomo, general))
+	body := lipgloss.JoinHorizontal(lipgloss.Top, v(nav, form, notes), gap, v(tasks, habits), gap, v(pomo, general))
 	if lipgloss.Width(body)+8 > h.ctx.Width {
-		body = lipgloss.JoinHorizontal(lipgloss.Top, v(nav, pomo, form, notes), gap, v(tasks, general))
+		body = lipgloss.JoinHorizontal(lipgloss.Top, v(nav, pomo, form, notes), gap, v(tasks, habits, general))
 	}
 	if lipgloss.Width(body)+8 > h.ctx.Width {
-		body = v(nav, tasks, pomo, general, form, notes)
+		body = v(nav, tasks, habits, pomo, general, form, notes)
 	}
 	footer := st.KeyDesc.Render("esc to close · rebind keys in config.toml")
 	return st.Modal.Padding(1, 2).Render(lipgloss.JoinVertical(lipgloss.Left,

@@ -42,6 +42,8 @@ func Run(t *testing.T, newStore Factory) {
 		{"ChangesSince", testChangesSince},
 		{"Pomodoros", testPomodoros},
 		{"Estimate", testEstimate},
+		{"Habits", testHabits},
+		{"HabitLogs", testHabitLogs},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -584,5 +586,134 @@ func testEstimate(t *testing.T, s store.Store) {
 	got, _ = s.GetTask(ctx, task.ID)
 	if got.Estimate != 6 {
 		t.Errorf("updated estimate = %d", got.Estimate)
+	}
+}
+
+func mustHabit(t *testing.T, s store.Store, name string) domain.Habit {
+	t.Helper()
+	h := domain.NewHabit(name, now)
+	if err := s.CreateHabit(context.Background(), &h); err != nil {
+		t.Fatalf("create habit %q: %v", name, err)
+	}
+	return h
+}
+
+func testHabits(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	read := mustHabit(t, s, "Read")
+	run := mustHabit(t, s, "Run")
+
+	dup := domain.NewHabit("read", now)
+	if err := s.CreateHabit(ctx, &dup); !errors.Is(err, store.ErrDuplicateName) {
+		t.Errorf("duplicate err = %v", err)
+	}
+	empty := domain.NewHabit("  ", now)
+	if err := s.CreateHabit(ctx, &empty); err == nil {
+		t.Error("empty name should be rejected")
+	}
+	if got, err := s.GetHabit(ctx, domain.ShortID(run.ID)); err != nil || got.Name != "Run" {
+		t.Errorf("by prefix = %+v, %v", got, err)
+	}
+
+	run.Name, run.UpdatedAt = "Run 5k", now.Add(time.Minute)
+	if err := s.UpdateHabit(ctx, &run); err != nil {
+		t.Fatal(err)
+	}
+	run.Name = "READ"
+	if err := s.UpdateHabit(ctx, &run); !errors.Is(err, store.ErrDuplicateName) {
+		t.Errorf("rename to a taken name err = %v", err)
+	}
+
+	before, _ := s.GetHabit(ctx, read.ID)
+	if err := s.DeleteHabit(ctx, read.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteHabit(ctx, read.ID, now); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("double delete err = %v", err)
+	}
+	hs, _ := s.ListHabits(ctx)
+	if len(hs) != 1 || hs[0].Name != "Run 5k" {
+		t.Errorf("habits after delete = %+v", hs)
+	}
+	if err := s.RestoreHabits(ctx, []domain.Habit{before}); err != nil {
+		t.Fatal(err)
+	}
+	hs, _ = s.ListHabits(ctx)
+	if len(hs) != 2 || hs[0].Name != "Read" {
+		t.Errorf("habits after restore = %+v (oldest first)", hs)
+	}
+}
+
+func testHabitLogs(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	h := mustHabit(t, s, "Stretch")
+	other := mustHabit(t, s, "Water")
+	for _, day := range []string{"2026-10-28", "2026-10-29"} {
+		if err := s.SetHabitDone(ctx, h.ID, day, true, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Marking done twice is harmless.
+	if err := s.SetHabitDone(ctx, h.ID, "2026-10-29", true, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetHabitDone(ctx, other.ID, "2026-10-29", true, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetHabitDone(ctx, h.ID, "29/10/2026", true, now); err == nil {
+		t.Error("malformed day should be rejected")
+	}
+	if err := s.SetHabitDone(ctx, domain.NewID(), "2026-10-29", true, now); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("missing habit err = %v", err)
+	}
+
+	daysOf := func(id string) []string {
+		t.Helper()
+		logs, err := s.ListHabitLogs(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, l := range logs {
+			if l.HabitID == id {
+				out = append(out, l.Day)
+			}
+		}
+		return out
+	}
+	if got := daysOf(h.ID); len(got) != 2 || got[0] != "2026-10-28" || got[1] != "2026-10-29" {
+		t.Errorf("days = %v", got)
+	}
+
+	// Undoing today, then redoing it.
+	if err := s.SetHabitDone(ctx, h.ID, "2026-10-29", false, now); err != nil {
+		t.Fatal(err)
+	}
+	if got := daysOf(h.ID); len(got) != 1 || got[0] != "2026-10-28" {
+		t.Errorf("days after undo = %v", got)
+	}
+	if err := s.SetHabitDone(ctx, h.ID, "2026-10-29", true, now); err != nil {
+		t.Fatal(err)
+	}
+	if got := daysOf(h.ID); len(got) != 2 {
+		t.Errorf("days after redo = %v", got)
+	}
+
+	// A deleted habit's logs are hidden, and come back with it.
+	before, _ := s.GetHabit(ctx, h.ID)
+	if err := s.DeleteHabit(ctx, h.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if got := daysOf(h.ID); len(got) != 0 {
+		t.Errorf("logs of deleted habit = %v", got)
+	}
+	if got := daysOf(other.ID); len(got) != 1 {
+		t.Errorf("other habit's logs = %v", got)
+	}
+	if err := s.RestoreHabits(ctx, []domain.Habit{before}); err != nil {
+		t.Fatal(err)
+	}
+	if got := daysOf(h.ID); len(got) != 2 {
+		t.Errorf("logs after restore = %v", got)
 	}
 }

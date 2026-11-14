@@ -336,7 +336,7 @@ func TestDeleteProjectWithShiftD(t *testing.T) {
 	h.contains("Delete task?")
 	h.keys("esc")
 
-	h.keys("h", "j", "j", "j", "j") // Today → Upcoming → Overdue → Completed → Uni
+	h.keys("h", "j", "j", "j", "j", "j") // Today → Upcoming → Overdue → Completed → Habits → Uni
 	h.contains("Uni · 1")
 	h.keys("D")
 	h.contains("Delete project?")

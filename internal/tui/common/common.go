@@ -29,13 +29,18 @@ type Context struct {
 	Width, Height int
 }
 
-// Scope is what the sidebar selected: a smart view, a project or a tag.
+// Scope is what the sidebar selected: a smart view, a project, a tag, or
+// the habits view (Habits set, no task filter).
 type Scope struct {
 	View      domain.SmartView
 	ProjectID string
 	Tag       string
+	Habits    bool
 	Title     string
 }
+
+// HabitsScope is the scope of the habits view.
+func HabitsScope() Scope { return Scope{Habits: true, Title: "Habits"} }
 
 // Filter turns the scope into a store filter.
 func (s Scope) Filter(now time.Time) domain.Filter {
@@ -47,7 +52,12 @@ func (s Scope) Filter(now time.Time) domain.Filter {
 }
 
 // Key identifies the scope for equality checks.
-func (s Scope) Key() string { return string(s.View) + "|" + s.ProjectID + "|" + s.Tag }
+func (s Scope) Key() string {
+	if s.Habits {
+		return "habits"
+	}
+	return string(s.View) + "|" + s.ProjectID + "|" + s.Tag
+}
 
 // ScopeSelectedMsg is sent by the sidebar when its selection changes.
 type ScopeSelectedMsg struct{ Scope Scope }

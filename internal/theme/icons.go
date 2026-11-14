@@ -14,6 +14,7 @@ type Icons struct {
 	Check, Cross, Warn, Info                   string
 	Tomato, Coffee, Pause, Play                string // pomodoro timer
 	Flame, Chart                               string // stats
+	Habits, DayDone, DayMissed                 string // habits view and its 7-day strip
 }
 
 // NerdIcons requires a Nerd Font.
@@ -27,6 +28,7 @@ var NerdIcons = Icons{
 	Check: "", Cross: "", Warn: "", Info: "",
 	Tomato: "🍅", Coffee: "\uf0f4", Pause: "\uf04c", Play: "\uf04b",
 	Flame: "\uf06d", Chart: "\uf080",
+	Habits: "\uf01e", DayDone: "●", DayMissed: "○",
 }
 
 // ASCIIIcons works in any terminal font.
@@ -40,6 +42,7 @@ var ASCIIIcons = Icons{
 	Check: "ok", Cross: "x", Warn: "!", Info: "i",
 	Tomato: "(p)", Coffee: "~", Pause: "||", Play: ">",
 	Flame: "*", Chart: "#",
+	Habits: "%", DayDone: "x", DayMissed: ".",
 }
 
 // IconSet returns the icons for a config value ("nerd" or "ascii").

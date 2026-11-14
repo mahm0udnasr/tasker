@@ -51,6 +51,21 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.syncDetail(true)
 
+	case habitsLoadedMsg:
+		if msg.gen != m.habitGen {
+			return m, nil
+		}
+		if msg.err != nil {
+			return m, common.ErrorCmd(msg.err)
+		}
+		m.habits.SetRows(msg.rows)
+		if m.pendingHabit != "" {
+			m.habits.SelectID(m.pendingHabit)
+			m.pendingHabit = ""
+		}
+		m.sidebar.SetHabitsOpen(m.habits.OpenToday())
+		return m, nil
+
 	case detailLoadedMsg:
 		if msg.gen != m.detailGen {
 			return m, nil
@@ -95,6 +110,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// A new task isn't in the list yet; select it once the reload lands.
 		m.pendingSelect = msg.selectID
+		m.pendingHabit = msg.selectHabitID
 		cmds := []tea.Cmd{m.reload()}
 		if msg.text != "" {
 			cmds = append(cmds, common.Status(msg.text))
@@ -154,6 +170,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case taskActionMsg:
 		return m, m.finishTaskAction(msg)
+
+	case habitActionMsg:
+		return m, m.finishHabitAction(msg)
 
 	case deleteProjectMsg:
 		return m, deleteProject(m.store, msg.project, m.ctx.Now())
@@ -266,6 +285,10 @@ func (m Model) handlePaneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.detail, cmd = m.detail.Update(msg)
 		return m, cmd
 	default:
+		if m.scope.Habits {
+			m.habits, cmd = m.habits.Update(msg)
+			return m, cmd
+		}
 		m.list, cmd = m.list.Update(msg)
 		return m, tea.Batch(cmd, m.syncDetail(false))
 	}

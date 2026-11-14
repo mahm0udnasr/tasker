@@ -1,8 +1,9 @@
 # tasker
 
 A fast, keyboard-driven task manager for the terminal: smart views, projects,
-tags, subtasks, natural-language due dates, a Pomodoro focus timer, five themes
-and a scriptable CLI. One static binary, no CGO, your data in a local SQLite file.
+tags, subtasks, natural-language due dates, daily habits with streaks, a
+Pomodoro focus timer, 15 themes and a scriptable CLI. One static binary, no
+CGO, your data in a local SQLite file.
 
 Built with Go and [Charm](https://charm.sh) (Bubble Tea, Bubbles, Lip Gloss,
 Huh, Glamour).
@@ -26,6 +27,8 @@ Huh, Glamour).
 - **Detail pane**, fuzzy **search** (`/`), **filters**, **sorting**, manual
   reordering, and a **command palette** (`Ctrl+P`) with every action.
 - **Undo** (`u`) for completes, edits, moves and deletes, up to 50 steps.
+- **Habits**: daily habits with today's status, a current streak and a
+  7-day history strip, in their own view next to your tasks.
 - **Pomodoro timer** tied to tasks, with estimates, breaks, desktop
   notifications and a full-screen focus mode.
 - **Stats**: streaks, completion rate, tasks and focus time per day.
@@ -92,9 +95,11 @@ All keys are vim-style by default and can be rebound in the config.
 | **General** | | `>` | skip to next phase |
 | `S` | stats | `z` | focus mode |
 | `T` | change theme | | |
-| `Ctrl+R` | reload | | |
-| `?` | help | | |
-| `q` | quit | | |
+| `Ctrl+R` | reload | **Habits** (in the Habits view) | |
+| `?` | help | `a` | add habit |
+| `q` | quit | `x` / `Space` | toggle today |
+| | | `e` | rename habit |
+| | | `d` | delete habit |
 
 | Task form (`a`, `A`, `e`) | | Notes editor (`n`) | |
 |---|---|---|---|
@@ -112,6 +117,23 @@ name creates a new project or tag. Adding from a view pre-fills the form: due
 "today" in Today, the project when a project is selected, the tag when a tag is.
 
 Notes are written separately from the form and shown in the detail pane.
+
+## Habits
+
+Select **Habits** in the sidebar (or "Go to Habits" in the command palette)
+to switch from tasks to your daily habits. Each row shows whether the habit is
+done today, the current streak (🔥) and a strip of the last 7 days, oldest on
+the left. The sidebar badge counts habits still open today.
+
+Habits use the same keys as tasks: `a` adds one, `e` renames it, `x` or
+`Space` marks today done (press it again to undo), and `d` deletes it after
+confirming. Delete, rename and toggles can be undone with `u`; a deleted
+habit comes back with its full history.
+
+The streak counts consecutive days done, ending today, or ending yesterday
+if you haven't done it yet today: an open today doesn't break the streak
+until midnight. Days follow your local timezone. Habits live in the same
+database as your tasks, and older databases are upgraded automatically.
 
 ## Pomodoro
 

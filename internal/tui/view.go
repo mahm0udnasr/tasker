@@ -21,7 +21,9 @@ const (
 
 func (m *Model) canShowDetailPane() bool { return m.width >= detailMinWidth }
 
-func (m *Model) detailVisible() bool { return m.showDetail && m.canShowDetailPane() }
+func (m *Model) detailVisible() bool {
+	return m.showDetail && m.canShowDetailPane() && !m.scope.Habits
+}
 
 // layout distributes the terminal among the panes.
 func (m *Model) layout() {
@@ -31,6 +33,7 @@ func (m *Model) layout() {
 	if m.narrow() {
 		m.sidebar.SetSize(m.width, h)
 		m.list.SetSize(m.width, h)
+		m.habits.SetSize(m.width, h)
 		m.detail.SetSize(min(m.width-4, 72), max(m.height-4, 6)) // modal size
 		return
 	}
@@ -40,10 +43,12 @@ func (m *Model) layout() {
 		dw := max(36, min(rest*2/5, 64))
 		m.detail.SetSize(dw, h)
 		m.list.SetSize(rest-dw, h)
+		m.habits.SetSize(rest-dw, h)
 		return
 	}
 	m.detail.SetSize(min(m.width-4, 72), max(m.height-4, 6))
 	m.list.SetSize(rest, h)
+	m.habits.SetSize(rest, h)
 }
 
 func (m Model) narrow() bool { return m.width < narrowWidth }
@@ -93,11 +98,11 @@ func (m Model) render() string {
 	case m.narrow() && m.focus == paneSidebar:
 		panes = m.sidebar.View()
 	case m.narrow():
-		panes = m.list.View()
+		panes = m.listView()
 	case m.detailVisible():
 		panes = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), m.list.View(), m.detail.View())
 	default:
-		panes = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), m.list.View())
+		panes = lipgloss.JoinHorizontal(lipgloss.Top, m.sidebar.View(), m.listView())
 	}
 	base := lipgloss.JoinVertical(lipgloss.Left, panes, m.status.View())
 	if len(m.overlays) == 0 {
@@ -114,6 +119,14 @@ func (m Model) render() string {
 		layers = append(layers, lipgloss.NewLayer(box).X(x).Y(y).Z(i+1))
 	}
 	return lipgloss.NewCompositor(layers...).Render()
+}
+
+// listView is the middle pane: the habits or the task list.
+func (m Model) listView() string {
+	if m.scope.Habits {
+		return m.habits.View()
+	}
+	return m.list.View()
 }
 
 // fit clips or pads s to exactly w×h cells. Overlays larger than the

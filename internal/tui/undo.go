@@ -23,6 +23,16 @@ type undoEntry struct {
 	projects         []domain.Project
 	createdTaskIDs   []string
 	createdProjectID string
+
+	habits          []domain.Habit
+	createdHabitIDs []string
+	habitDay        *habitDayState
+}
+
+// habitDayState is whether a habit was done on a day before a toggle.
+type habitDayState struct {
+	habitID, day string
+	done         bool
 }
 
 type undoStack struct{ entries []undoEntry }
@@ -74,11 +84,15 @@ func applyUndo(s store.Store, e undoEntry, now time.Time) tea.Cmd {
 				return mutatedMsg{}, err
 			}
 		}
+		habitSel, err := undoHabits(ctx, s, e, now)
+		if err != nil {
+			return mutatedMsg{}, err
+		}
 		sel := ""
 		if len(e.tasks) > 0 {
 			sel = e.tasks[0].ID
 		}
-		return mutatedMsg{text: "Undid: " + e.desc, selectID: sel, isUndo: true}, nil
+		return mutatedMsg{text: "Undid: " + e.desc, selectID: sel, selectHabitID: habitSel, isUndo: true}, nil
 	})
 }
 

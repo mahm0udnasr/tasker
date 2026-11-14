@@ -105,6 +105,11 @@ func (m *Model) keyAction(msg tea.KeyPressMsg) (action, bool) {
 
 // runAction executes a, resolving the selected task when needed.
 func (m *Model) runAction(a action) tea.Cmd {
+	if m.scope.Habits {
+		if cmd, handled := m.habitAction(a); handled {
+			return cmd
+		}
+	}
 	t, ok := m.list.Selected()
 	if a.needsTask && !ok {
 		return common.ErrorCmd(errors.New("no task selected"))
@@ -251,7 +256,16 @@ func (m *Model) openPalette(domain.Task) tea.Cmd {
 		if a.name == common.ActPalette {
 			continue
 		}
-		items = append(items, overlay.PickerItem{Icon: "›", Label: a.title,
+		title := a.title
+		if m.scope.Habits {
+			if !availableInHabits(a) && habitTitles[a.name] == "" {
+				continue
+			}
+			if t, ok := habitTitles[a.name]; ok {
+				title = t
+			}
+		}
+		items = append(items, overlay.PickerItem{Icon: "›", Label: title,
 			Hint: m.ctx.Keys.Get(a.name).Help().Key, Value: paletteMsg{name: a.name}})
 	}
 	viewIcons := map[domain.SmartView]string{domain.ViewInbox: ic.Inbox, domain.ViewToday: ic.Today,
@@ -260,6 +274,8 @@ func (m *Model) openPalette(domain.Task) tea.Cmd {
 		items = append(items, overlay.PickerItem{Icon: viewIcons[v], Label: "Go to " + v.Title(),
 			Hint: fmt.Sprint(m.counts.For(v)), Value: jumpScopeMsg{common.Scope{View: v, Title: v.Title()}}})
 	}
+	items = append(items, overlay.PickerItem{Icon: ic.Habits, Label: "Go to Habits",
+		Hint: fmt.Sprint(m.habits.OpenToday()), Value: jumpScopeMsg{common.HabitsScope()}})
 	for _, p := range m.projects {
 		items = append(items, overlay.PickerItem{Icon: ic.Project, Label: "Go to project " + p.Name,
 			Hint:  fmt.Sprint(m.counts.Projects[p.ID]),

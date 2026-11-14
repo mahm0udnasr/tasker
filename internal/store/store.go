@@ -64,6 +64,24 @@ type Store interface {
 	// RestorePomodoros upserts sessions (import).
 	RestorePomodoros(ctx context.Context, ps []domain.Pomodoro) error
 
+	// ListHabits returns live habits, oldest first.
+	ListHabits(ctx context.Context) ([]domain.Habit, error)
+	// GetHabit resolves a full ID or a unique prefix (≥ MinIDPrefix chars).
+	GetHabit(ctx context.Context, idOrPrefix string) (domain.Habit, error)
+	// CreateHabit inserts h. Names are unique, case-insensitively.
+	CreateHabit(ctx context.Context, h *domain.Habit) error
+	// UpdateHabit saves the name of an existing live habit.
+	UpdateHabit(ctx context.Context, h *domain.Habit) error
+	// DeleteHabit soft-deletes a habit; its logs are kept for undo.
+	DeleteHabit(ctx context.Context, id string, now time.Time) error
+	// RestoreHabits upserts full habit snapshots, including deleted state (undo).
+	RestoreHabits(ctx context.Context, hs []domain.Habit) error
+	// SetHabitDone marks a live habit done or not done on day (a
+	// domain.DayLayout local date).
+	SetHabitDone(ctx context.Context, habitID, day string, done bool, now time.Time) error
+	// ListHabitLogs returns the done days of every live habit.
+	ListHabitLogs(ctx context.Context) ([]domain.HabitLog, error)
+
 	// ListTags returns tags in use by open tasks, with counts.
 	ListTags(ctx context.Context) ([]domain.Tag, error)
 

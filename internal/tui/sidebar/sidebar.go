@@ -19,6 +19,7 @@ const (
 	kindView itemKind = iota
 	kindProject
 	kindTag
+	kindHabits
 	kindHeader // not selectable
 	kindSpacer // not selectable
 )
@@ -45,6 +46,8 @@ type Model struct {
 	projects []domain.Project
 	tags     []domain.Tag
 	counts   domain.Counts
+	// habitsOpen is the number of habits not yet done today.
+	habitsOpen int
 }
 
 // New creates a sidebar that starts on the given view.
@@ -75,6 +78,19 @@ func (m *Model) SetData(projects []domain.Project, tags []domain.Tag, counts dom
 	m.clampOffset()
 }
 
+// SetHabitsOpen updates the Habits badge: habits not yet done today.
+func (m *Model) SetHabitsOpen(n int) {
+	if n == m.habitsOpen {
+		return
+	}
+	m.habitsOpen = n
+	for i := range m.items {
+		if m.items[i].kind == kindHabits {
+			m.items[i].count = n
+		}
+	}
+}
+
 func (m *Model) rebuild() {
 	ic := m.ctx.Icons
 	st := m.ctx.Styles
@@ -91,6 +107,8 @@ func (m *Model) rebuild() {
 		items = append(items, item{kind: kindView, scope: common.Scope{View: v, Title: v.Title()},
 			icon: viewIcons[v], color: viewColors[v], count: m.counts.For(v)})
 	}
+	items = append(items, item{kind: kindSpacer},
+		item{kind: kindHabits, scope: common.HabitsScope(), icon: ic.Habits, color: st.Tag, count: m.habitsOpen})
 	items = append(items, item{kind: kindSpacer}, item{kind: kindHeader, scope: common.Scope{Title: "PROJECTS"}})
 	if len(m.projects) == 0 {
 		items = append(items, item{kind: kindHeader, scope: common.Scope{Title: "  none yet"}})

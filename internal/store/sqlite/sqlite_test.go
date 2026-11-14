@@ -81,8 +81,11 @@ func TestUpgradeFromV1(t *testing.T) {
 
 	s := open(t, path)
 	defer s.Close()
-	if v, _ := s.SchemaVersion(ctx); v != 2 {
-		t.Errorf("schema version = %d, want 2", v)
+	if v, _ := s.SchemaVersion(ctx); v != 3 {
+		t.Errorf("schema version = %d, want 3", v)
+	}
+	if hs, err := s.ListHabits(ctx); err != nil || len(hs) != 0 {
+		t.Errorf("habits after upgrade = %v, %v", hs, err)
 	}
 	task, err := s.GetTask(ctx, "11111111")
 	if err != nil || task.Title != "old task" || task.Estimate != 0 {

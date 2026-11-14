@@ -149,9 +149,11 @@ func loadSearchIndex(s store.Store) tea.Cmd {
 type mutatedMsg struct {
 	text     string
 	selectID string // move the cursor here after reload
-	expandID string // expand this parent after reload
-	undo     *undoEntry
-	isUndo   bool
+	// selectHabitID moves the habits cursor here after reload.
+	selectHabitID string
+	expandID      string // expand this parent after reload
+	undo          *undoEntry
+	isUndo        bool
 }
 
 type errMsg struct{ err error }

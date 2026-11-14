@@ -155,7 +155,7 @@ func TestUndo(t *testing.T) {
 	}
 
 	// Delete a project, then undo restores it and its tasks.
-	h.keys("h", "j", "j", "j", "j", "D", "y")
+	h.keys("h", "j", "j", "j", "j", "j", "D", "y") // … Completed → Habits → Uni
 	h.contains("Deleted project “Uni”")
 	h.keys("u")
 	ps, _ = h.store.ListProjects(ctx)

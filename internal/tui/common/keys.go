@@ -149,6 +149,27 @@ func (k *KeyMap) Is(msg interface{ String() string }, action string) bool {
 	return key.Matches(msg, k.bindings[action])
 }
 
+// HabitActions are the task actions the habits view reuses, in hint order.
+var HabitActions = []string{ActAdd, ActToggleDone, ActEdit, ActDelete}
+
+var habitDescs = map[string]string{
+	ActAdd:        "add habit",
+	ActToggleDone: "toggle today",
+	ActEdit:       "rename habit",
+	ActDelete:     "delete habit",
+}
+
+// Habit returns the binding for one of HabitActions, described as it acts
+// in the habits view (same keys, so rebinding a task key moves both).
+func (k *KeyMap) Habit(action string) key.Binding {
+	b := k.bindings[action]
+	desc, ok := habitDescs[action]
+	if !ok {
+		return b
+	}
+	return key.NewBinding(key.WithKeys(b.Keys()...), key.WithHelp(b.Help().Key, desc))
+}
+
 // Ordered returns all bindings in help order.
 func (k *KeyMap) Ordered() []key.Binding {
 	out := make([]key.Binding, 0, len(k.order))

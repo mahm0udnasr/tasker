@@ -18,6 +18,7 @@ import (
 	"github.com/mahm0udnasr/tasker/internal/theme"
 	"github.com/mahm0udnasr/tasker/internal/tui/common"
 	"github.com/mahm0udnasr/tasker/internal/tui/detail"
+	"github.com/mahm0udnasr/tasker/internal/tui/habitlist"
 	"github.com/mahm0udnasr/tasker/internal/tui/overlay"
 	"github.com/mahm0udnasr/tasker/internal/tui/pomodoro"
 	"github.com/mahm0udnasr/tasker/internal/tui/sidebar"
@@ -51,6 +52,7 @@ type Model struct {
 	scope    common.Scope
 	sidebar  sidebar.Model
 	list     tasklist.Model
+	habits   habitlist.Model // shown in place of list when scope.Habits
 	detail   detail.Model
 	status   statusbar.Model
 	overlays []common.Overlay
@@ -73,6 +75,10 @@ type Model struct {
 	detailGen int
 	// pendingSelect is a task ID to select when the next list load arrives.
 	pendingSelect string
+
+	habitGen int
+	// pendingHabit is a habit ID to select when the next habits load arrives.
+	pendingHabit string
 }
 
 // New builds the root model. cfgPath is where preferences (theme, welcome
@@ -101,6 +107,7 @@ func NewWithConfigPath(s store.Store, cfg config.Config, cfgPath string, now fun
 		focus:      paneList,
 		sidebar:    sidebar.New(ctx, start),
 		list:       tasklist.New(ctx),
+		habits:     habitlist.New(ctx),
 		detail:     detail.New(ctx),
 		status:     statusbar.New(ctx),
 		showDetail: cfg.ShowDetail,
@@ -140,6 +147,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadTasks(m.store, m.loadGen, m.query(), m.ctx.Now()),
 		loadSidebar(m.store, m.ctx.Now()),
+		loadHabits(m.store, m.habitGen),
 		m.pomo.Init(),
 		tick(),
 	)
@@ -163,7 +171,7 @@ func (m *Model) sortKey() domain.SortKey {
 
 // reload fetches the current list and the sidebar data in parallel.
 func (m *Model) reload() tea.Cmd {
-	return tea.Batch(m.reloadTasks(), loadSidebar(m.store, m.ctx.Now()))
+	return tea.Batch(m.reloadTasks(), loadSidebar(m.store, m.ctx.Now()), m.reloadHabits())
 }
 
 func (m *Model) reloadTasks() tea.Cmd {
@@ -189,6 +197,9 @@ func (m *Model) setScope(s common.Scope) {
 	m.scope = s
 	m.updateListTitle()
 	m.status.SetView(s.Title)
+	if m.width > 0 {
+		m.layout() // the habits view has no detail pane
+	}
 }
 
 // updateListTitle shows the scope plus any non-default sort and filter.
@@ -255,6 +266,7 @@ func (m *Model) applyFocus() {
 	}
 	m.sidebar.SetFocused(m.focus == paneSidebar && !overlay)
 	m.list.SetFocused(m.focus == paneList && !overlay)
+	m.habits.SetFocused(m.focus == paneList && !overlay)
 	m.detail.SetFocused(m.focus == paneDetail && !overlay)
 	m.status.SetHints(m.hints())
 }
@@ -267,6 +279,9 @@ func (m *Model) hints() []key.Binding {
 		return k.Hints(common.ActRight, common.ActAdd, common.ActPalette, common.ActHelp)
 	case paneDetail:
 		return k.Hints(common.ActNotes, common.ActEdit, common.ActDetail, common.ActHelp)
+	}
+	if m.scope.Habits {
+		return m.habitHints()
 	}
 	return k.Hints(common.ActAdd, common.ActToggleDone, common.ActSearch, common.ActPalette, common.ActHelp)
 }
